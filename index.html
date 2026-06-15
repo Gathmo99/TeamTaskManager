@@ -129,14 +129,6 @@
     .pill.due-red { color: #fecaca; border-color: rgba(239,68,68,.75); background: rgba(239,68,68,.1); }
     .pill.due-muted { color: var(--muted); border-color: var(--line); }
     .actions { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
-    .reassign-row {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 7px;
-      width: 100%;
-      margin-top: 8px;
-    }
-    .reassign-row select { min-width: 150px; }
     .empty { color: var(--muted); border: 1px dashed var(--line); border-radius: 14px; padding: 18px; text-align: center; }
 
     .toast { position: fixed; right: 20px; bottom: 20px; background: #111827; border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; color: var(--text); box-shadow: var(--shadow); max-width: 420px; }
@@ -178,7 +170,7 @@
         </label>
         <button class="btn" id="loginBtn">Einloggen</button>
         <button class="btn secondary" id="registerBtn">Registrieren</button>
-        <button class="btn ghost" id="toggleRegisterBtn">Registrierung mit Vorname/Nachname anzeigen</button>
+        <button class="btn ghost hidden" id="backToLoginBtn">Zurück zum Login</button>
         <p class="muted-note">Beim Registrieren wird dein Vorname gespeichert. „Mir zuweisen“ nutzt danach z. B. „Max“ statt „m.mustermann“.</p>
       </div>
     </section>
@@ -472,10 +464,7 @@
       const firstName = $("firstNameInput").value.trim();
       const lastName = $("lastNameInput").value.trim();
 
-      if (!registerMode) {
-        setRegisterMode(true);
-        return toast("Bitte Vorname und Nachname eintragen.");
-      }
+      if (!registerMode) return showRegisterForm();
       if (!firstName || !lastName) return toast("Bitte Vorname und Nachname eintragen.");
 
       const { data, error } = await client.auth.signUp({
@@ -492,10 +481,24 @@
       toast("Registrierung erstellt. Prüfe ggf. deine E-Mail zur Bestätigung.");
     }
 
+
+    function showRegisterForm() {
+      setRegisterMode(true);
+      $("backToLoginBtn")?.classList.remove("hidden");
+      $("loginBtn")?.classList.add("hidden");
+      toast("Bitte Vorname und Nachname eintragen.");
+    }
+
+    function showLoginForm() {
+      setRegisterMode(false);
+      $("backToLoginBtn")?.classList.add("hidden");
+      $("loginBtn")?.classList.remove("hidden");
+    }
+
     function setRegisterMode(value) {
       registerMode = value;
       $("nameFields").classList.toggle("hidden", !registerMode);
-      $("toggleRegisterBtn").textContent = registerMode ? "Namensfelder ausblenden" : "Registrierung mit Vorname/Nachname anzeigen";
+      
     }
 
     function toggleProfilePanel() {
@@ -663,27 +666,6 @@
       return { label: `Fällig am ${dueDate}`, className: "due-muted" };
     }
 
-    function assigneeOptions(selectedAssignee) {
-      const profileOptions = profiles
-        .map(p => {
-          const value = p.first_name || "";
-          const label = displayName(p);
-          return `<option value="${escapeHtml(value)}" ${selectedAssignee === value ? "selected" : ""}>${escapeHtml(label)}</option>`;
-        })
-        .join("");
-
-      const selectedKnown = profiles.some(p => p.first_name === selectedAssignee);
-      const customOption = selectedAssignee && !selectedKnown
-        ? `<option value="${escapeHtml(selectedAssignee)}" selected>${escapeHtml(selectedAssignee)}</option>`
-        : "";
-
-      return `<option value="" ${!selectedAssignee ? "selected" : ""}>Nicht zugewiesen</option>${customOption}${profileOptions}`;
-    }
-
-    async function reassignTask(id, assignee) {
-      await updateTask(id, { assignee: assignee || null });
-    }
-
     function taskCard(t) {
       const div = document.createElement("article");
       div.className = "task";
@@ -702,22 +684,11 @@
           </select>
           <button class="btn secondary small" data-action="mine">Mir zuweisen</button>
           <button class="btn danger small" data-action="delete">Löschen</button>
-          <div class="reassign-row">
-            <select data-action="reassign">
-              ${assigneeOptions(t.assignee)}
-            </select>
-            <button class="btn secondary small" data-action="reassignBtn">Neu zuweisen</button>
-          </div>
         </div>
       `;
       div.querySelector('[data-action="status"]').addEventListener("change", e => updateTask(t.id, { status: e.target.value }));
       div.querySelector('[data-action="mine"]').addEventListener("click", () => updateTask(t.id, { assignee: firstNameFromProfile(currentProfile) }));
       div.querySelector('[data-action="delete"]').addEventListener("click", () => deleteTask(t.id));
-      div.querySelector('[data-action="reassignBtn"]').addEventListener("click", () => {
-        const value = div.querySelector('[data-action="reassign"]').value;
-        reassignTask(t.id, value);
-      });
-      div.querySelector('[data-action="reassign"]').addEventListener("change", e => reassignTask(t.id, e.target.value));
       return div;
     }
 
@@ -738,7 +709,7 @@
     window.addEventListener("DOMContentLoaded", () => {
       $("loginBtn")?.addEventListener("click", login);
       $("registerBtn")?.addEventListener("click", register);
-      $("toggleRegisterBtn")?.addEventListener("click", () => setRegisterMode(!registerMode));
+      $("backToLoginBtn")?.addEventListener("click", showLoginForm);
       $("profileBtn")?.addEventListener("click", toggleProfilePanel);
       $("saveProfileBtn")?.addEventListener("click", saveProfile);
       $("dueCalendarBtn")?.addEventListener("click", openDueCalendar);
