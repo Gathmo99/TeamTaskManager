@@ -161,6 +161,18 @@
       font-size: 13px;
       margin-bottom: 8px;
     }
+    
+    .history-log{
+      margin-top:8px;
+      max-height:140px;
+      overflow:auto;
+      border-top:1px solid var(--line);
+      padding-top:8px;
+      color:var(--muted);
+      font-size:12px;
+      white-space:pre-wrap;
+    }
+
     .actions { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
     .reassign-row {
       display: grid;
@@ -813,8 +825,9 @@ function setRegisterMode(value) {
         </div>
         <div class="status-box">
           <strong>Aktueller Stand</strong>
-          <textarea data-action="progressNote" placeholder="z. B. Kunde informiert, warten auf Rückmeldung...">${escapeHtml(t.progress_note || "")}</textarea>
-          <button class="btn secondary small" data-action="saveProgressNote">Stand speichern</button>
+          <textarea data-action="progressNote" placeholder="z. B. Mail an Export ist geschrieben"></textarea>
+          <button class="btn secondary small" data-action="saveProgressNote">Stand hinzufügen</button>
+          <div class="history-log">${escapeHtml(t.progress_note || "Noch keine Einträge.")}</div>
         </div>
         <div class="actions">
           <select data-action="status">
@@ -841,7 +854,12 @@ function setRegisterMode(value) {
       div.querySelector('[data-action="delete"]').addEventListener("click", () => deleteTask(t.id));
       div.querySelector('[data-action="saveProgressNote"]').addEventListener("click", () => {
         const value = div.querySelector('[data-action="progressNote"]').value.trim();
-        updateTask(t.id, { progress_note: value || null });
+        if(!value) return;
+        const stamp = new Date().toLocaleString('de-DE');
+        const user = (currentProfile?.first_name || 'User');
+        const existing = t.progress_note || '';
+        const entry = `[${stamp}] ${user}: ${value}`;
+        updateTask(t.id, { progress_note: existing ? existing + '\n\n' + entry : entry });
       });
       div.querySelector('[data-action="reassignBtn"]').addEventListener("click", () => {
         const value = div.querySelector('[data-action="reassign"]').value;
