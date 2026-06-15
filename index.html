@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Team Task Board</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --panel: #171a23;
+      --panel-2: #202433;
+      --text: #f4f6fb;
+      --muted: #9aa4b2;
+      --line: #2d3345;
+      --accent: #7c3aed;
+      --danger: #ef4444;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --blue: #38bdf8;
+      --radius: 18px;
+      --shadow: 0 20px 50px rgba(0,0,0,.35);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(124,58,237,.25), transparent 32rem),
+        radial-gradient(circle at bottom right, rgba(56,189,248,.16), transparent 28rem),
+        var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    .hidden { display: none !important; }
+
+    .wrap { max-width: 1420px; margin: 0 auto; padding: 28px; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 22px; }
+    .brand h1 { margin: 0; font-size: clamp(26px, 4vw, 42px); letter-spacing: -.04em; }
+    .brand p { margin: 6px 0 0; color: var(--muted); }
+    .userbox { display: flex; align-items: center; gap: 10px; color: var(--muted); flex-wrap: wrap; justify-content: flex-end; }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.015)), var(--panel);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .auth { max-width: 520px; margin: 8vh auto; padding: 26px; }
+    .auth h1 { margin-top: 0; }
+    .row { display: grid; gap: 12px; }
+    .grid { display: grid; gap: 14px; }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+    label { color: var(--muted); font-size: 13px; display: grid; gap: 7px; }
+    input, select, textarea {
+      width: 100%;
+      background: #0d1018;
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 11px 12px;
+      outline: none;
+    }
+    textarea { min-height: 84px; resize: vertical; }
+    input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,58,237,.18); }
+
+    .btn {
+      border: 0;
+      border-radius: 12px;
+      padding: 11px 14px;
+      color: white;
+      background: var(--accent);
+      font-weight: 700;
+    }
+    .btn.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
+    .btn.danger { background: var(--danger); }
+    .btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--muted); }
+    .btn.small { padding: 7px 10px; font-size: 13px; }
+
+    .toolbar { padding: 16px; display: grid; grid-template-columns: 1.4fr repeat(4, minmax(130px, .7fr)) auto; gap: 12px; align-items: end; margin-bottom: 18px; }
+    .composer { padding: 18px; margin-bottom: 18px; }
+
+    .board { display: grid; grid-template-columns: repeat(4, minmax(250px, 1fr)); gap: 16px; align-items: start; }
+    .column { padding: 14px; min-height: 420px; }
+    .colhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .colhead h2 { margin: 0; font-size: 17px; }
+    .count { color: var(--muted); background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; font-size: 12px; }
+
+    .task { background: #10141f; border: 1px solid var(--line); border-radius: 16px; padding: 13px; margin-bottom: 12px; }
+    .task h3 { margin: 0 0 8px; font-size: 16px; }
+    .task p { color: var(--muted); margin: 8px 0; font-size: 14px; white-space: pre-wrap; }
+    .meta { display: flex; gap: 7px; flex-wrap: wrap; margin: 10px 0; }
+    .pill { border-radius: 999px; padding: 4px 8px; font-size: 12px; border: 1px solid var(--line); color: var(--muted); background: rgba(255,255,255,.04); }
+    .pill.high { color: #fecaca; border-color: rgba(239,68,68,.5); }
+    .pill.medium { color: #fde68a; border-color: rgba(245,158,11,.5); }
+    .pill.low { color: #bbf7d0; border-color: rgba(34,197,94,.5); }
+    .actions { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
+    .empty { color: var(--muted); border: 1px dashed var(--line); border-radius: 14px; padding: 18px; text-align: center; }
+
+    .toast { position: fixed; right: 20px; bottom: 20px; background: #111827; border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; color: var(--text); box-shadow: var(--shadow); max-width: 420px; }
+    .setup-warning { padding: 14px 16px; margin-bottom: 18px; border-color: rgba(245,158,11,.35); color: #fde68a; }
+    .setup-warning code { color: white; }
+
+    @media (max-width: 1050px) {
+      .toolbar { grid-template-columns: 1fr 1fr; }
+      .board { grid-template-columns: repeat(2, minmax(240px, 1fr)); }
+    }
+    @media (max-width: 650px) {
+      .wrap { padding: 16px; }
+      .grid.two, .grid.three, .toolbar, .board { grid-template-columns: 1fr; }
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .userbox { justify-content: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section id="authView" class="auth card">
+      <h1>Team Task Board</h1>
+      <p style="color:var(--muted)">Login für dich und deine Kollegen. Keine Tickets, kein Bürokratie-Ork, nur Aufgaben.</p>
+      <div class="row">
+        <label>E-Mail
+          <input id="authEmail" type="email" placeholder="name@firma.de" autocomplete="email">
+        </label>
+        <label>Passwort
+          <input id="authPassword" type="password" placeholder="Mindestens 6 Zeichen" autocomplete="current-password">
+        </label>
+        <button class="btn" id="loginBtn">Einloggen</button>
+        <button class="btn secondary" id="registerBtn">Registrieren</button>
+      </div>
+    </section>
+
+    <section id="appView" class="hidden">
+      <header class="topbar">
+        <div class="brand">
+          <h1>Team Task Board</h1>
+          <p>Gemeinsame Aufgabenliste für Kollegen, Projekte und tägliche Feuerlöscherei.</p>
+        </div>
+        <div class="userbox">
+          <span id="userEmail"></span>
+          <button class="btn ghost small" id="logoutBtn">Logout</button>
+        </div>
+      </header>
+
+      <div id="setupWarning" class="setup-warning card hidden">
+        Supabase ist noch nicht konfiguriert. Öffne die Datei und trage oben bei <code>SUPABASE_URL</code> und <code>SUPABASE_ANON_KEY</code> deine Werte ein.
+      </div>
+
+      <section class="composer card">
+        <div class="grid three">
+          <label>Aufgabe
+            <input id="titleInput" placeholder="z. B. MyPita ORB prüfen">
+          </label>
+          <label>Zuständig
+            <input id="assigneeInput" placeholder="z. B. Jan, Marvin, Sead">
+          </label>
+          <label>Kunde / Projekt
+            <input id="projectInput" placeholder="Optional">
+          </label>
+        </div>
+        <div class="grid three" style="margin-top:14px">
+          <label>Priorität
+            <select id="priorityInput">
+              <option value="high">Hoch</option>
+              <option value="medium" selected>Mittel</option>
+              <option value="low">Niedrig</option>
+            </select>
+          </label>
+          <label>Status
+            <select id="statusInput">
+              <option value="open">Offen</option>
+              <option value="progress">In Bearbeitung</option>
+              <option value="waiting">Wartet</option>
+              <option value="done">Erledigt</option>
+            </select>
+          </label>
+          <label>Fällig
+            <input id="dueInput" type="date">
+          </label>
+        </div>
+        <div class="grid" style="margin-top:14px">
+          <label>Notiz
+            <textarea id="noteInput" placeholder="Optional: Kontext, Rückruf, Link, kleine Randnotiz aus dem Maschinenraum"></textarea>
+          </label>
+          <button class="btn" id="addBtn">Aufgabe erstellen</button>
+        </div>
+      </section>
+
+      <section class="toolbar card">
+        <label>Suchen
+          <input id="searchInput" placeholder="Aufgabe, Kunde, Zuständig...">
+        </label>
+        <label>Priorität
+          <select id="filterPriority">
+            <option value="all">Alle</option>
+            <option value="high">Hoch</option>
+            <option value="medium">Mittel</option>
+            <option value="low">Niedrig</option>
+          </select>
+        </label>
+        <label>Zuständig
+          <input id="filterAssignee" placeholder="Name">
+        </label>
+        <label>Erledigte
+          <select id="filterDone">
+            <option value="show">Anzeigen</option>
+            <option value="hide">Ausblenden</option>
+          </select>
+        </label>
+        <label>Sortierung
+          <select id="sortInput">
+            <option value="created_desc">Neueste zuerst</option>
+            <option value="due_asc">Fällig zuerst</option>
+            <option value="priority">Priorität</option>
+          </select>
+        </label>
+        <button class="btn secondary" id="refreshBtn">Aktualisieren</button>
+      </section>
+
+      <section class="board" id="board"></section>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const SUPABASE_URL = "https://nehoetsdjzlnvqfsnbvt.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5laG9ldHNkanpsbnZxZnNuYnZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTM3MzYsImV4cCI6MjA5NzA4OTczNn0.7h4E7mrzaMsTeJnzsfPirGzR-hkQDxEjuwG-3xXSKXA";
+
+    const configured = !SUPABASE_URL.includes("PASTE_") && !SUPABASE_ANON_KEY.includes("PASTE_");
+    const client = configured ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+    const columns = [
+      { id: "open", title: "Offen" },
+      { id: "progress", title: "In Bearbeitung" },
+      { id: "waiting", title: "Wartet" },
+      { id: "done", title: "Erledigt" },
+    ];
+
+    const $ = (id) => document.getElementById(id);
+    let currentUser = null;
+    let tasks = [];
+
+    function toast(message) {
+      const box = $("toast");
+      box.textContent = message;
+      box.classList.remove("hidden");
+      setTimeout(() => box.classList.add("hidden"), 3400);
+    }
+
+    function priorityLabel(value) {
+      return { high: "Hoch", medium: "Mittel", low: "Niedrig" }[value] || value;
+    }
+
+    function statusLabel(value) {
+      return { open: "Offen", progress: "In Bearbeitung", waiting: "Wartet", done: "Erledigt" }[value] || value;
+    }
+
+    async function init() {
+      if (!configured) {
+        $("authView").classList.add("hidden");
+        $("appView").classList.remove("hidden");
+        $("setupWarning").classList.remove("hidden");
+        renderBoard();
+        return;
+      }
+
+      const { data } = await client.auth.getSession();
+      currentUser = data.session?.user || null;
+      await showCorrectView();
+
+      client.auth.onAuthStateChange(async (_event, session) => {
+        currentUser = session?.user || null;
+        await showCorrectView();
+      });
+    }
+
+    async function showCorrectView() {
+      if (currentUser) {
+        $("authView").classList.add("hidden");
+        $("appView").classList.remove("hidden");
+        $("userEmail").textContent = currentUser.email;
+        await loadTasks();
+        subscribeRealtime();
+      } else {
+        $("appView").classList.add("hidden");
+        $("authView").classList.remove("hidden");
+      }
+    }
+
+    async function login() {
+      const email = $("authEmail").value.trim();
+      const password = $("authPassword").value;
+      const { error } = await client.auth.signInWithPassword({ email, password });
+      if (error) toast(error.message);
+    }
+
+    async function register() {
+      const email = $("authEmail").value.trim();
+      const password = $("authPassword").value;
+      const { error } = await client.auth.signUp({ email, password });
+      if (error) return toast(error.message);
+      toast("Registrierung erstellt. Prüfe ggf. deine E-Mail zur Bestätigung.");
+    }
+
+    async function logout() {
+      await client.auth.signOut();
+    }
+
+    async function loadTasks() {
+      const { data, error } = await client
+        .from("team_tasks")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) return toast(error.message);
+      tasks = data || [];
+      renderBoard();
+    }
+
+    async function addTask() {
+      const title = $("titleInput").value.trim();
+      if (!title) return toast("Bitte eine Aufgabe eintragen.");
+
+      const payload = {
+        title,
+        assignee: $("assigneeInput").value.trim() || null,
+        project: $("projectInput").value.trim() || null,
+        priority: $("priorityInput").value,
+        status: $("statusInput").value,
+        due_date: $("dueInput").value || null,
+        note: $("noteInput").value.trim() || null,
+        created_by: currentUser.id,
+      };
+
+      const { error } = await client.from("team_tasks").insert(payload);
+      if (error) return toast(error.message);
+
+      ["titleInput", "assigneeInput", "projectInput", "dueInput", "noteInput"].forEach(id => $(id).value = "");
+      $("priorityInput").value = "medium";
+      $("statusInput").value = "open";
+      toast("Aufgabe erstellt.");
+      await loadTasks();
+    }
+
+    async function updateTask(id, patch) {
+      const { error } = await client.from("team_tasks").update(patch).eq("id", id);
+      if (error) return toast(error.message);
+      await loadTasks();
+    }
+
+    async function deleteTask(id) {
+      if (!confirm("Aufgabe wirklich löschen?")) return;
+      const { error } = await client.from("team_tasks").delete().eq("id", id);
+      if (error) return toast(error.message);
+      await loadTasks();
+    }
+
+    function filteredTasks() {
+      const q = $("searchInput")?.value.toLowerCase().trim() || "";
+      const p = $("filterPriority")?.value || "all";
+      const assignee = $("filterAssignee")?.value.toLowerCase().trim() || "";
+      const done = $("filterDone")?.value || "show";
+      const sort = $("sortInput")?.value || "created_desc";
+
+      let list = tasks.filter(t => {
+        const hay = [t.title, t.assignee, t.project, t.note].filter(Boolean).join(" ").toLowerCase();
+        return (!q || hay.includes(q))
+          && (p === "all" || t.priority === p)
+          && (!assignee || (t.assignee || "").toLowerCase().includes(assignee))
+          && (done === "show" || t.status !== "done");
+      });
+
+      if (sort === "due_asc") {
+        list.sort((a,b) => (a.due_date || "9999-12-31").localeCompare(b.due_date || "9999-12-31"));
+      } else if (sort === "priority") {
+        const rank = { high: 0, medium: 1, low: 2 };
+        list.sort((a,b) => rank[a.priority] - rank[b.priority]);
+      } else {
+        list.sort((a,b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+      }
+      return list;
+    }
+
+    function renderBoard() {
+      const board = $("board");
+      board.innerHTML = "";
+      const list = configured ? filteredTasks() : [];
+
+      for (const col of columns) {
+        const colTasks = list.filter(t => t.status === col.id);
+        const el = document.createElement("section");
+        el.className = "column card";
+        el.innerHTML = `
+          <div class="colhead"><h2>${col.title}</h2><span class="count">${colTasks.length}</span></div>
+          <div class="tasks"></div>
+        `;
+        const holder = el.querySelector(".tasks");
+        if (!configured) {
+          holder.innerHTML = `<div class="empty">Supabase-Werte eintragen, dann erwacht das Board.</div>`;
+        } else if (!colTasks.length) {
+          holder.innerHTML = `<div class="empty">Nichts hier.</div>`;
+        } else {
+          colTasks.forEach(t => holder.appendChild(taskCard(t)));
+        }
+        board.appendChild(el);
+      }
+    }
+
+    function taskCard(t) {
+      const div = document.createElement("article");
+      div.className = "task";
+      div.innerHTML = `
+        <h3>${escapeHtml(t.title)}</h3>
+        ${t.note ? `<p>${escapeHtml(t.note)}</p>` : ""}
+        <div class="meta">
+          <span class="pill ${t.priority}">${priorityLabel(t.priority)}</span>
+          ${t.assignee ? `<span class="pill">👤 ${escapeHtml(t.assignee)}</span>` : ""}
+          ${t.project ? `<span class="pill">🏢 ${escapeHtml(t.project)}</span>` : ""}
+          ${t.due_date ? `<span class="pill">📅 ${escapeHtml(t.due_date)}</span>` : ""}
+        </div>
+        <div class="actions">
+          <select data-action="status">
+            ${columns.map(c => `<option value="${c.id}" ${t.status === c.id ? "selected" : ""}>${statusLabel(c.id)}</option>`).join("")}
+          </select>
+          <button class="btn secondary small" data-action="mine">Mir zuweisen</button>
+          <button class="btn danger small" data-action="delete">Löschen</button>
+        </div>
+      `;
+      div.querySelector('[data-action="status"]').addEventListener("change", e => updateTask(t.id, { status: e.target.value }));
+      div.querySelector('[data-action="mine"]').addEventListener("click", () => updateTask(t.id, { assignee: currentUser.email?.split("@")[0] || currentUser.email }));
+      div.querySelector('[data-action="delete"]').addEventListener("click", () => deleteTask(t.id));
+      return div;
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>'"]/g, m => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" }[m]));
+    }
+
+    let realtimeChannel = null;
+    function subscribeRealtime() {
+      if (realtimeChannel || !client) return;
+      realtimeChannel = client
+        .channel("team_tasks_changes")
+        .on("postgres_changes", { event: "*", schema: "public", table: "team_tasks" }, () => loadTasks())
+        .subscribe();
+    }
+
+    ["loginBtn", "registerBtn", "logoutBtn", "addBtn", "refreshBtn"].forEach(id => {
+      window.addEventListener("DOMContentLoaded", () => {
+        const el = $(id);
+        if (!el) return;
+        if (id === "loginBtn") el.addEventListener("click", login);
+        if (id === "registerBtn") el.addEventListener("click", register);
+        if (id === "logoutBtn") el.addEventListener("click", logout);
+        if (id === "addBtn") el.addEventListener("click", addTask);
+        if (id === "refreshBtn") el.addEventListener("click", loadTasks);
+      });
+    });
+
+    window.addEventListener("DOMContentLoaded", () => {
+      ["searchInput", "filterPriority", "filterAssignee", "filterDone", "sortInput"].forEach(id => $(id)?.addEventListener("input", renderBoard));
+      init();
+    });
+  </script>
+</body>
+</html>
