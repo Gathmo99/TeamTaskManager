@@ -285,12 +285,9 @@
             <option value="all">Alle</option>
           </select>
         </label>
-        <label>Erledigte
-          <select id="filterDone">
-            <option value="show">Anzeigen</option>
-            <option value="hide">Ausblenden</option>
-            <option value="archive">Archiv anzeigen</option>
-          </select>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:22px;">
+          <input id="showDoneCheckbox" type="checkbox" style="width:auto">
+          Erledigte Aufgaben anzeigen
         </label>
         <label>Sortierung
           <select id="sortInput">
@@ -639,7 +636,7 @@ function setRegisterMode(value) {
       const q = $("searchInput")?.value.toLowerCase().trim() || "";
       const p = $("filterPriority")?.value || "all";
       const assignee = $("filterAssignee")?.value || "all";
-      const done = $("filterDone")?.value || "show";
+      const showDone = $("showDoneCheckbox")?.checked || false;
       const sort = $("sortInput")?.value || "created_desc";
 
       let list = tasks.filter(t => {
@@ -647,13 +644,7 @@ function setRegisterMode(value) {
         return (!q || hay.includes(q))
           && (p === "all" || t.priority === p)
           && (assignee === "all" || t.assignee === assignee)
-          && (
-            done === "archive"
-              ? true
-              : done === "hide"
-                ? t.status !== "done"
-                : !isArchivedTask(t)
-          );
+          && (showDone ? true : t.status !== "done");
       });
 
       if (sort === "due_asc") {
@@ -672,7 +663,9 @@ function setRegisterMode(value) {
       board.innerHTML = "";
       const list = configured ? filteredTasks() : [];
 
+      const showDone = $("showDoneCheckbox")?.checked || false;
       for (const col of columns) {
+        if (col.id === "done" && !showDone) continue;
         const colTasks = list.filter(t => t.status === col.id);
         const el = document.createElement("section");
         el.className = "column card";
@@ -803,7 +796,8 @@ function setRegisterMode(value) {
       $("logoutBtn")?.addEventListener("click", logout);
       $("addBtn")?.addEventListener("click", addTask);
       $("refreshBtn")?.addEventListener("click", async () => { await loadProfiles(); await loadTasks(); });
-      ["searchInput", "filterPriority", "filterAssignee", "filterDone", "sortInput"].forEach(id => $(id)?.addEventListener("input", renderBoard));
+      ["searchInput", "filterPriority", "filterAssignee", "sortInput"].forEach(id => $(id)?.addEventListener("input", renderBoard));
+      $("showDoneCheckbox")?.addEventListener("change", renderBoard);
       init();
     });
   </script>
