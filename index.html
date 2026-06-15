@@ -118,6 +118,19 @@
 
     .task { background: #10141f; border: 1px solid var(--line); border-radius: 16px; padding: 13px; margin-bottom: 12px; }
     .task h3 { margin: 0 0 8px; font-size: 16px; }
+    .task-category {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0 0 8px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(56,189,248,.55);
+      background: rgba(56,189,248,.08);
+      color: #bae6fd;
+      font-size: 12px;
+      font-weight: 700;
+    }
     .task p { color: var(--muted); margin: 8px 0; font-size: 14px; white-space: pre-wrap; }
     .meta { display: flex; gap: 7px; flex-wrap: wrap; margin: 10px 0; }
     .pill { border-radius: 999px; padding: 4px 8px; font-size: 12px; border: 1px solid var(--line); color: var(--muted); background: rgba(255,255,255,.04); }
@@ -789,12 +802,12 @@ function setRegisterMode(value) {
       div.className = "task";
       div.innerHTML = `
         <h3>${escapeHtml(t.title)}</h3>
+        ${t.category ? `<div class="task-category">Kategorie: ${escapeHtml(t.category)}</div>` : ""}
         ${t.note ? `<p>${escapeHtml(t.note)}</p>` : ""}
         <div class="meta">
           <span class="pill ${t.priority}">${priorityLabel(t.priority)}</span>
           ${t.assignee ? `<span class="pill">👤 ${escapeHtml(t.assignee)}</span>` : ""}
           ${t.project ? `<span class="pill">🏢 ${escapeHtml(t.project)}</span>` : ""}
-          ${t.category ? `<span class="pill category">🏷️ ${escapeHtml(t.category)}</span>` : ""}
           ${t.due_date ? `<span class="pill ${dueInfo(t.due_date).className}">📅 ${escapeHtml(dueInfo(t.due_date).label)}</span>` : ""}
           ${isArchivedTask(t) ? `<span class="pill archived">📦 Archiv</span>` : ""}
         </div>
