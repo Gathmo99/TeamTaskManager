@@ -129,6 +129,25 @@
     .pill.due-red { color: #fecaca; border-color: rgba(239,68,68,.75); background: rgba(239,68,68,.1); }
     .pill.due-muted { color: var(--muted); border-color: var(--line); }
     .pill.archived { color: #ddd6fe; border-color: rgba(124,58,237,.65); background: rgba(124,58,237,.1); }
+    .pill.category { color: #bae6fd; border-color: rgba(56,189,248,.55); background: rgba(56,189,248,.08); }
+    .status-box {
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255,255,255,.025);
+    }
+    .status-box strong {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .status-box textarea {
+      min-height: 66px;
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
     .actions { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
     .reassign-row {
       display: grid;
@@ -233,6 +252,25 @@
           </label>
         </div>
         <div class="grid three" style="margin-top:14px">
+          <label>Kategorie
+            <select id="categoryInput">
+              <option value="">Keine Kategorie</option>
+              <option value="Support">Support</option>
+              <option value="Kunde">Kunde</option>
+              <option value="Hardware">Hardware</option>
+              <option value="Software">Software</option>
+              <option value="Versand">Versand</option>
+              <option value="Admin">Admin</option>
+              <option value="Intern">Intern</option>
+              <option value="Sonstiges">Sonstiges</option>
+            </select>
+          </label>
+          <label>Andere Kategorie
+            <input id="customCategoryInput" placeholder="Optional, z. B. Payment">
+          </label>
+          <span></span>
+        </div>
+        <div class="grid three" style="margin-top:14px">
           <label>Anderer Vorname
             <input id="customAssigneeInput" placeholder="Optional, z. B. neuer Kollege">
           </label>
@@ -278,6 +316,19 @@
             <option value="high">Hoch</option>
             <option value="medium">Mittel</option>
             <option value="low">Niedrig</option>
+          </select>
+        </label>
+        <label>Kategorie
+          <select id="filterCategory">
+            <option value="all">Alle</option>
+            <option value="Support">Support</option>
+            <option value="Kunde">Kunde</option>
+            <option value="Hardware">Hardware</option>
+            <option value="Software">Software</option>
+            <option value="Versand">Versand</option>
+            <option value="Admin">Admin</option>
+            <option value="Intern">Intern</option>
+            <option value="Sonstiges">Sonstiges</option>
           </select>
         </label>
         <label>Zuständig
@@ -584,11 +635,15 @@ function setRegisterMode(value) {
 
       const customAssignee = $("customAssigneeInput").value.trim();
       const selectedAssignee = $("assigneeInput").value;
+      const customCategory = $("customCategoryInput").value.trim();
+      const selectedCategory = $("categoryInput").value;
 
       const payload = {
         title,
         assignee: customAssignee || selectedAssignee || null,
         project: $("projectInput").value.trim() || null,
+        category: customCategory || selectedCategory || null,
+        progress_note: null,
         priority: $("priorityInput").value,
         status: $("statusInput").value,
         completed_at: $("statusInput").value === "done" ? new Date().toISOString() : null,
@@ -600,8 +655,9 @@ function setRegisterMode(value) {
       const { error } = await client.from("team_tasks").insert(payload);
       if (error) return toast(error.message);
 
-      ["titleInput", "projectInput", "dueInput", "noteInput", "customAssigneeInput"].forEach(id => $(id).value = "");
+      ["titleInput", "projectInput", "dueInput", "noteInput", "customAssigneeInput", "customCategoryInput"].forEach(id => $(id).value = "");
       $("assigneeInput").value = "";
+      $("categoryInput").value = "";
       $("priorityInput").value = "medium";
       $("statusInput").value = "open";
       toast("Aufgabe erstellt.");
@@ -636,13 +692,15 @@ function setRegisterMode(value) {
       const q = $("searchInput")?.value.toLowerCase().trim() || "";
       const p = $("filterPriority")?.value || "all";
       const assignee = $("filterAssignee")?.value || "all";
+      const category = $("filterCategory")?.value || "all";
       const showDone = $("showDoneCheckbox")?.checked || false;
       const sort = $("sortInput")?.value || "created_desc";
 
       let list = tasks.filter(t => {
-        const hay = [t.title, t.assignee, t.project, t.note].filter(Boolean).join(" ").toLowerCase();
+        const hay = [t.title, t.assignee, t.project, t.category, t.note, t.progress_note].filter(Boolean).join(" ").toLowerCase();
         return (!q || hay.includes(q))
           && (p === "all" || t.priority === p)
+          && (category === "all" || t.category === category)
           && (assignee === "all" || t.assignee === assignee)
           && (showDone ? true : t.status !== "done");
       });
@@ -736,8 +794,14 @@ function setRegisterMode(value) {
           <span class="pill ${t.priority}">${priorityLabel(t.priority)}</span>
           ${t.assignee ? `<span class="pill">👤 ${escapeHtml(t.assignee)}</span>` : ""}
           ${t.project ? `<span class="pill">🏢 ${escapeHtml(t.project)}</span>` : ""}
+          ${t.category ? `<span class="pill category">🏷️ ${escapeHtml(t.category)}</span>` : ""}
           ${t.due_date ? `<span class="pill ${dueInfo(t.due_date).className}">📅 ${escapeHtml(dueInfo(t.due_date).label)}</span>` : ""}
           ${isArchivedTask(t) ? `<span class="pill archived">📦 Archiv</span>` : ""}
+        </div>
+        <div class="status-box">
+          <strong>Aktueller Stand</strong>
+          <textarea data-action="progressNote" placeholder="z. B. Kunde informiert, warten auf Rückmeldung...">${escapeHtml(t.progress_note || "")}</textarea>
+          <button class="btn secondary small" data-action="saveProgressNote">Stand speichern</button>
         </div>
         <div class="actions">
           <select data-action="status">
@@ -762,6 +826,10 @@ function setRegisterMode(value) {
       });
       div.querySelector('[data-action="mine"]').addEventListener("click", () => updateTask(t.id, { assignee: firstNameFromProfile(currentProfile) }));
       div.querySelector('[data-action="delete"]').addEventListener("click", () => deleteTask(t.id));
+      div.querySelector('[data-action="saveProgressNote"]').addEventListener("click", () => {
+        const value = div.querySelector('[data-action="progressNote"]').value.trim();
+        updateTask(t.id, { progress_note: value || null });
+      });
       div.querySelector('[data-action="reassignBtn"]').addEventListener("click", () => {
         const value = div.querySelector('[data-action="reassign"]').value;
         reassignTask(t.id, value);
@@ -796,7 +864,7 @@ function setRegisterMode(value) {
       $("logoutBtn")?.addEventListener("click", logout);
       $("addBtn")?.addEventListener("click", addTask);
       $("refreshBtn")?.addEventListener("click", async () => { await loadProfiles(); await loadTasks(); });
-      ["searchInput", "filterPriority", "filterAssignee", "sortInput"].forEach(id => $(id)?.addEventListener("input", renderBoard));
+      ["searchInput", "filterPriority", "filterCategory", "filterAssignee", "sortInput"].forEach(id => $(id)?.addEventListener("input", renderBoard));
       $("showDoneCheckbox")?.addEventListener("change", renderBoard);
       init();
     });
