@@ -68,6 +68,31 @@
     }
     textarea { min-height: 84px; resize: vertical; }
     input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,58,237,.18); }
+    input[type="date"] { color-scheme: dark; cursor: pointer; }
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      cursor: pointer;
+      opacity: .95;
+      filter: invert(1);
+    }
+
+    .date-wrap { position: relative; display: grid; }
+    .date-wrap input { padding-right: 48px; }
+    .calendar-btn {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--text);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+    .calendar-btn:hover { border-color: var(--accent); }
 
     .btn {
       border: 0;
@@ -219,7 +244,10 @@
         </div>
         <div class="grid two" style="margin-top:14px">
           <label>Fällig
-            <input id="dueInput" type="date">
+            <span class="date-wrap">
+              <input id="dueInput" type="date">
+              <button class="calendar-btn" id="dueCalendarBtn" type="button" title="Kalender öffnen">📅</button>
+            </span>
           </label>
           <label>Notiz
             <textarea id="noteInput" placeholder="Optional: Kontext, Rückruf, Link, kleine Randnotiz aus dem Maschinenraum"></textarea>
@@ -313,6 +341,17 @@
 
     function firstNameFromProfile(profile) {
       return profile?.first_name?.trim() || currentUser?.email?.split("@")[0] || "Ich";
+    }
+
+    function openDueCalendar() {
+      const input = $("dueInput");
+      if (!input) return;
+      if (typeof input.showPicker === "function") {
+        input.showPicker();
+      } else {
+        input.focus();
+        input.click();
+      }
     }
 
     async function init() {
@@ -662,6 +701,8 @@
       $("toggleRegisterBtn")?.addEventListener("click", () => setRegisterMode(!registerMode));
       $("profileBtn")?.addEventListener("click", toggleProfilePanel);
       $("saveProfileBtn")?.addEventListener("click", saveProfile);
+      $("dueCalendarBtn")?.addEventListener("click", openDueCalendar);
+      $("dueInput")?.addEventListener("click", openDueCalendar);
       $("logoutBtn")?.addEventListener("click", logout);
       $("addBtn")?.addEventListener("click", addTask);
       $("refreshBtn")?.addEventListener("click", async () => { await loadProfiles(); await loadTasks(); });
