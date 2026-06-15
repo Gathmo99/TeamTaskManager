@@ -179,6 +179,7 @@
         <button class="btn" id="loginBtn">Einloggen</button>
         <button class="btn secondary" id="registerBtn">Registrieren</button>
         <button class="btn ghost hidden" id="backToLoginBtn">Zurück zum Login</button>
+        <button class="btn ghost" id="resetPasswordBtn" type="button">Passwort vergessen?</button>
         <p class="muted-note">Beim Registrieren wird dein Vorname gespeichert. „Mir zuweisen“ nutzt danach z. B. „Max“ statt „m.mustermann“.</p>
       </div>
     </section>
@@ -464,6 +465,19 @@
       const password = $("authPassword").value;
       const { error } = await client.auth.signInWithPassword({ email, password });
       if (error) toast(error.message);
+    }
+
+    async function resetPassword() {
+      const email = $("authEmail").value.trim();
+
+      if (!email) return toast("Bitte zuerst deine E-Mail-Adresse eingeben.");
+
+      const { error } = await client.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.href
+      });
+
+      if (error) return toast(error.message);
+      toast("Passwort-Reset wurde versendet. Bitte prüfe dein E-Mail-Postfach.");
     }
 
     async function register() {
@@ -754,6 +768,7 @@ function setRegisterMode(value) {
       $("loginBtn")?.addEventListener("click", login);
       $("registerBtn")?.addEventListener("click", register);
       $("backToLoginBtn")?.addEventListener("click", showLoginForm);
+      $("resetPasswordBtn")?.addEventListener("click", resetPassword);
       $("profileBtn")?.addEventListener("click", toggleProfilePanel);
       $("saveProfileBtn")?.addEventListener("click", saveProfile);
       $("dueCalendarBtn")?.addEventListener("click", openDueCalendar);
