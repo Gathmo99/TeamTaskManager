@@ -158,7 +158,13 @@
             <input id="titleInput" placeholder="z. B. MyPita ORB prüfen">
           </label>
           <label>Zuständig
-            <input id="assigneeInput" placeholder="z. B. Jan, Marvin, Sead">
+            <select id="assigneeInput">
+              <option value="">Nicht zugewiesen</option>
+              <option value="Jan">Jan</option>
+              <option value="Siad">Siad</option>
+              <option value="Oli">Oli</option>
+              <option value="Ralph">Ralph</option>
+            </select>
           </label>
           <label>Kunde / Projekt
             <input id="projectInput" placeholder="Optional">
@@ -205,7 +211,13 @@
           </select>
         </label>
         <label>Zuständig
-          <input id="filterAssignee" placeholder="Name">
+          <select id="filterAssignee">
+            <option value="">Alle</option>
+            <option value="Jan">Jan</option>
+            <option value="Siad">Siad</option>
+            <option value="Oli">Oli</option>
+            <option value="Ralph">Ralph</option>
+          </select>
         </label>
         <label>Erledigte
           <select id="filterDone">
