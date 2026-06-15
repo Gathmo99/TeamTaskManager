@@ -155,6 +155,7 @@
         <div class="userbox">
           <span id="userName"></span>
           <span id="userEmail"></span>
+          <button class="btn ghost small" id="profileBtn">Mein Profil</button>
           <button class="btn ghost small" id="logoutBtn">Logout</button>
         </div>
       </header>
@@ -162,6 +163,21 @@
       <div id="setupWarning" class="setup-warning card hidden">
         Supabase ist noch nicht konfiguriert. Öffne die Datei und trage oben bei <code>SUPABASE_URL</code> und <code>SUPABASE_ANON_KEY</code> deine Werte ein.
       </div>
+
+      <section id="profilePanel" class="composer card hidden">
+        <div class="grid two">
+          <label>Vorname
+            <input id="profileFirstNameInput" type="text" placeholder="z. B. Jan" autocomplete="given-name">
+          </label>
+          <label>Nachname
+            <input id="profileLastNameInput" type="text" placeholder="z. B. Winneckens" autocomplete="family-name">
+          </label>
+        </div>
+        <div class="grid" style="margin-top:14px">
+          <p class="muted-note">Dein Vorname wird für „Mir zuweisen“ genutzt. Die E-Mail bleibt dein Login und wird hier nicht geändert.</p>
+          <button class="btn" id="saveProfileBtn">Profil speichern</button>
+        </div>
+      </section>
 
       <section class="composer card">
         <div class="grid three">
@@ -431,6 +447,42 @@
       $("toggleRegisterBtn").textContent = registerMode ? "Namensfelder ausblenden" : "Registrierung mit Vorname/Nachname anzeigen";
     }
 
+    function toggleProfilePanel() {
+      const panel = $("profilePanel");
+      const willShow = panel.classList.contains("hidden");
+      panel.classList.toggle("hidden", !willShow);
+
+      if (willShow) {
+        $("profileFirstNameInput").value = currentProfile?.first_name || "";
+        $("profileLastNameInput").value = currentProfile?.last_name || "";
+      }
+    }
+
+    async function saveProfile() {
+      const firstName = $("profileFirstNameInput").value.trim();
+      const lastName = $("profileLastNameInput").value.trim();
+
+      if (!firstName || !lastName) return toast("Bitte Vorname und Nachname eintragen.");
+
+      const { data, error } = await client
+        .from("profiles")
+        .upsert({
+          id: currentUser.id,
+          first_name: firstName,
+          last_name: lastName,
+          email: currentUser.email
+        })
+        .select("*")
+        .single();
+
+      if (error) return toast("Profil konnte nicht gespeichert werden: " + error.message);
+
+      currentProfile = data;
+      $("userName").textContent = displayName(currentProfile);
+      await loadProfiles();
+      toast("Profil gespeichert.");
+    }
+
     async function logout() {
       await client.auth.signOut();
       currentProfile = null;
@@ -576,7 +628,7 @@
       realtimeChannel = client
         .channel("team_tasks_changes")
         .on("postgres_changes", { event: "*", schema: "public", table: "team_tasks" }, () => loadTasks())
-        .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => loadProfiles())
+        .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, async () => { await loadProfile(); await loadProfiles(); $("userName").textContent = currentProfile ? displayName(currentProfile) : ""; })
         .subscribe();
     }
 
@@ -584,6 +636,8 @@
       $("loginBtn")?.addEventListener("click", login);
       $("registerBtn")?.addEventListener("click", register);
       $("toggleRegisterBtn")?.addEventListener("click", () => setRegisterMode(!registerMode));
+      $("profileBtn")?.addEventListener("click", toggleProfilePanel);
+      $("saveProfileBtn")?.addEventListener("click", saveProfile);
       $("logoutBtn")?.addEventListener("click", logout);
       $("addBtn")?.addEventListener("click", addTask);
       $("refreshBtn")?.addEventListener("click", async () => { await loadProfiles(); await loadTasks(); });
