@@ -275,6 +275,9 @@
           <label>Kunde / Projekt
             <input id="projectInput" placeholder="Optional">
           </label>
+          <label>Interner Ansprechpartner
+            <input id="contactInput" placeholder="z. B. Jan">
+          </label>
         </div>
         <div class="grid three" style="margin-top:14px">
           <label>Kategorie
@@ -667,6 +670,7 @@ function setRegisterMode(value) {
         title,
         assignee: customAssignee || selectedAssignee || null,
         project: $("projectInput").value.trim() || null,
+        internal_contact: $("contactInput").value.trim() || null,
         category: customCategory || selectedCategory || null,
         progress_note: null,
         priority: $("priorityInput").value,
@@ -680,7 +684,7 @@ function setRegisterMode(value) {
       const { error } = await client.from("team_tasks").insert(payload);
       if (error) return toast(error.message);
 
-      ["titleInput", "projectInput", "dueInput", "noteInput", "customAssigneeInput", "customCategoryInput"].forEach(id => $(id).value = "");
+      ["titleInput", "projectInput", "contactInput", "dueInput", "noteInput", "customAssigneeInput", "customCategoryInput"].forEach(id => $(id).value = "");
       $("assigneeInput").value = "";
       $("categoryInput").value = "";
       $("priorityInput").value = "medium";
@@ -722,7 +726,7 @@ function setRegisterMode(value) {
       const sort = $("sortInput")?.value || "created_desc";
 
       let list = tasks.filter(t => {
-        const hay = [t.title, t.assignee, t.project, t.category, t.note, t.progress_note].filter(Boolean).join(" ").toLowerCase();
+        const hay = [t.title, t.assignee, t.project, t.internal_contact, t.category, t.note, t.progress_note].filter(Boolean).join(" ").toLowerCase();
         return (!q || hay.includes(q))
           && (p === "all" || t.priority === p)
           && (category === "all" || t.category === category)
@@ -820,6 +824,7 @@ function setRegisterMode(value) {
           <span class="pill ${t.priority}">${priorityLabel(t.priority)}</span>
           ${t.assignee ? `<span class="pill">👤 ${escapeHtml(t.assignee)}</span>` : ""}
           ${t.project ? `<span class="pill">🏢 ${escapeHtml(t.project)}</span>` : ""}
+          ${t.internal_contact ? `<span class="pill">☎ ${escapeHtml(t.internal_contact)}</span>` : ""}
           ${t.due_date ? `<span class="pill ${dueInfo(t.due_date).className}">📅 ${escapeHtml(dueInfo(t.due_date).label)}</span>` : ""}
           ${isArchivedTask(t) ? `<span class="pill archived">📦 Archiv</span>` : ""}
         </div>
