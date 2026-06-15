@@ -16,7 +16,6 @@
       --danger: #ef4444;
       --ok: #22c55e;
       --warn: #f59e0b;
-      --blue: #38bdf8;
       --radius: 18px;
       --shadow: 0 20px 50px rgba(0,0,0,.35);
     }
@@ -26,8 +25,8 @@
       margin: 0;
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background:
-        radial-gradient(circle at top left, rgba(124,58,237,.25), transparent 32rem),
-        radial-gradient(circle at bottom right, rgba(56,189,248,.16), transparent 28rem),
+        radial-gradient(circle at top left, rgba(124,58,237,.22), transparent 32rem),
+        radial-gradient(circle at bottom right, rgba(56,189,248,.13), transparent 28rem),
         var(--bg);
       color: var(--text);
       min-height: 100vh;
@@ -50,7 +49,7 @@
       box-shadow: var(--shadow);
     }
 
-    .auth { max-width: 520px; margin: 8vh auto; padding: 26px; }
+    .auth { max-width: 560px; margin: 8vh auto; padding: 26px; }
     .auth h1 { margin-top: 0; }
     .row { display: grid; gap: 12px; }
     .grid { display: grid; gap: 14px; }
@@ -106,6 +105,7 @@
     .toast { position: fixed; right: 20px; bottom: 20px; background: #111827; border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; color: var(--text); box-shadow: var(--shadow); max-width: 420px; }
     .setup-warning { padding: 14px 16px; margin-bottom: 18px; border-color: rgba(245,158,11,.35); color: #fde68a; }
     .setup-warning code { color: white; }
+    .muted-note { color: var(--muted); font-size: 13px; margin: 0; }
 
     @media (max-width: 1050px) {
       .toolbar { grid-template-columns: 1fr 1fr; }
@@ -125,6 +125,14 @@
       <h1>Team Task Board</h1>
       <p style="color:var(--muted)">Login für dich und deine Kollegen. Keine Tickets, kein Bürokratie-Ork, nur Aufgaben.</p>
       <div class="row">
+        <div id="nameFields" class="grid two hidden">
+          <label>Vorname
+            <input id="firstNameInput" type="text" placeholder="z. B. Jan" autocomplete="given-name">
+          </label>
+          <label>Nachname
+            <input id="lastNameInput" type="text" placeholder="z. B. Winneckens" autocomplete="family-name">
+          </label>
+        </div>
         <label>E-Mail
           <input id="authEmail" type="email" placeholder="name@firma.de" autocomplete="email">
         </label>
@@ -133,6 +141,8 @@
         </label>
         <button class="btn" id="loginBtn">Einloggen</button>
         <button class="btn secondary" id="registerBtn">Registrieren</button>
+        <button class="btn ghost" id="toggleRegisterBtn">Registrierung mit Vorname/Nachname anzeigen</button>
+        <p class="muted-note">Beim Registrieren wird dein Vorname gespeichert. „Mir zuweisen“ nutzt danach z. B. „Jan“ statt „j.winneckens“.</p>
       </div>
     </section>
 
@@ -143,6 +153,7 @@
           <p>Gemeinsame Aufgabenliste für Kollegen, Projekte und tägliche Feuerlöscherei.</p>
         </div>
         <div class="userbox">
+          <span id="userName"></span>
           <span id="userEmail"></span>
           <button class="btn ghost small" id="logoutBtn">Logout</button>
         </div>
@@ -160,10 +171,6 @@
           <label>Zuständig
             <select id="assigneeInput">
               <option value="">Nicht zugewiesen</option>
-              <option value="Jan">Jan</option>
-              <option value="Siad">Siad</option>
-              <option value="Oli">Oli</option>
-              <option value="Ralph">Ralph</option>
             </select>
           </label>
           <label>Kunde / Projekt
@@ -171,6 +178,9 @@
           </label>
         </div>
         <div class="grid three" style="margin-top:14px">
+          <label>Anderer Vorname
+            <input id="customAssigneeInput" placeholder="Optional, z. B. neuer Kollege">
+          </label>
           <label>Priorität
             <select id="priorityInput">
               <option value="high">Hoch</option>
@@ -186,14 +196,16 @@
               <option value="done">Erledigt</option>
             </select>
           </label>
+        </div>
+        <div class="grid two" style="margin-top:14px">
           <label>Fällig
             <input id="dueInput" type="date">
           </label>
-        </div>
-        <div class="grid" style="margin-top:14px">
           <label>Notiz
             <textarea id="noteInput" placeholder="Optional: Kontext, Rückruf, Link, kleine Randnotiz aus dem Maschinenraum"></textarea>
           </label>
+        </div>
+        <div class="grid" style="margin-top:14px">
           <button class="btn" id="addBtn">Aufgabe erstellen</button>
         </div>
       </section>
@@ -212,11 +224,7 @@
         </label>
         <label>Zuständig
           <select id="filterAssignee">
-            <option value="">Alle</option>
-            <option value="Jan">Jan</option>
-            <option value="Siad">Siad</option>
-            <option value="Oli">Oli</option>
-            <option value="Ralph">Ralph</option>
+            <option value="all">Alle</option>
           </select>
         </label>
         <label>Erledigte
@@ -258,7 +266,10 @@
 
     const $ = (id) => document.getElementById(id);
     let currentUser = null;
+    let currentProfile = null;
     let tasks = [];
+    let profiles = [];
+    let registerMode = false;
 
     function toast(message) {
       const box = $("toast");
@@ -273,6 +284,15 @@
 
     function statusLabel(value) {
       return { open: "Offen", progress: "In Bearbeitung", waiting: "Wartet", done: "Erledigt" }[value] || value;
+    }
+
+    function displayName(profile) {
+      if (!profile) return currentUser?.email || "";
+      return [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim() || profile.email;
+    }
+
+    function firstNameFromProfile(profile) {
+      return profile?.first_name?.trim() || currentUser?.email?.split("@")[0] || "Ich";
     }
 
     async function init() {
@@ -298,6 +318,9 @@
       if (currentUser) {
         $("authView").classList.add("hidden");
         $("appView").classList.remove("hidden");
+        await loadProfile();
+        await loadProfiles();
+        $("userName").textContent = currentProfile ? displayName(currentProfile) : "";
         $("userEmail").textContent = currentUser.email;
         await loadTasks();
         subscribeRealtime();
@@ -305,6 +328,68 @@
         $("appView").classList.add("hidden");
         $("authView").classList.remove("hidden");
       }
+    }
+
+    async function loadProfile() {
+      const { data, error } = await client
+        .from("profiles")
+        .select("*")
+        .eq("id", currentUser.id)
+        .maybeSingle();
+
+      if (error) {
+        toast("Profil konnte nicht geladen werden: " + error.message);
+        currentProfile = null;
+        return;
+      }
+
+      if (!data) {
+        const fallbackFirstName = currentUser.user_metadata?.first_name || currentUser.email?.split("@")[0] || "User";
+        const fallbackLastName = currentUser.user_metadata?.last_name || "";
+        const { data: created, error: insertError } = await client
+          .from("profiles")
+          .insert({ id: currentUser.id, first_name: fallbackFirstName, last_name: fallbackLastName, email: currentUser.email })
+          .select("*")
+          .single();
+        if (insertError) {
+          toast("Profil konnte nicht erstellt werden: " + insertError.message);
+          currentProfile = null;
+          return;
+        }
+        currentProfile = created;
+        return;
+      }
+
+      currentProfile = data;
+    }
+
+    async function loadProfiles() {
+      const { data, error } = await client
+        .from("profiles")
+        .select("id, first_name, last_name, email")
+        .order("first_name", { ascending: true });
+      if (error) return toast("Teamliste konnte nicht geladen werden: " + error.message);
+      profiles = data || [];
+      renderProfileSelects();
+    }
+
+    function renderProfileSelects() {
+      const assigneeSelect = $("assigneeInput");
+      const filterSelect = $("filterAssignee");
+
+      const assigneeValue = assigneeSelect.value;
+      const filterValue = filterSelect.value;
+
+      assigneeSelect.innerHTML = `<option value="">Nicht zugewiesen</option>` + profiles
+        .map(p => `<option value="${escapeHtml(p.first_name)}">${escapeHtml(displayName(p))}</option>`)
+        .join("");
+
+      filterSelect.innerHTML = `<option value="all">Alle</option>` + profiles
+        .map(p => `<option value="${escapeHtml(p.first_name)}">${escapeHtml(p.first_name)}</option>`)
+        .join("");
+
+      assigneeSelect.value = assigneeValue;
+      filterSelect.value = filterValue || "all";
     }
 
     async function login() {
@@ -317,13 +402,39 @@
     async function register() {
       const email = $("authEmail").value.trim();
       const password = $("authPassword").value;
-      const { error } = await client.auth.signUp({ email, password });
+      const firstName = $("firstNameInput").value.trim();
+      const lastName = $("lastNameInput").value.trim();
+
+      if (!registerMode) {
+        setRegisterMode(true);
+        return toast("Bitte Vorname und Nachname eintragen.");
+      }
+      if (!firstName || !lastName) return toast("Bitte Vorname und Nachname eintragen.");
+
+      const { data, error } = await client.auth.signUp({
+        email,
+        password,
+        options: { data: { first_name: firstName, last_name: lastName } }
+      });
       if (error) return toast(error.message);
+
+      if (data.user && data.session) {
+        await client.from("profiles").upsert({ id: data.user.id, first_name: firstName, last_name: lastName, email });
+      }
+
       toast("Registrierung erstellt. Prüfe ggf. deine E-Mail zur Bestätigung.");
+    }
+
+    function setRegisterMode(value) {
+      registerMode = value;
+      $("nameFields").classList.toggle("hidden", !registerMode);
+      $("toggleRegisterBtn").textContent = registerMode ? "Namensfelder ausblenden" : "Registrierung mit Vorname/Nachname anzeigen";
     }
 
     async function logout() {
       await client.auth.signOut();
+      currentProfile = null;
+      profiles = [];
     }
 
     async function loadTasks() {
@@ -340,9 +451,12 @@
       const title = $("titleInput").value.trim();
       if (!title) return toast("Bitte eine Aufgabe eintragen.");
 
+      const customAssignee = $("customAssigneeInput").value.trim();
+      const selectedAssignee = $("assigneeInput").value;
+
       const payload = {
         title,
-        assignee: $("assigneeInput").value.trim() || null,
+        assignee: customAssignee || selectedAssignee || null,
         project: $("projectInput").value.trim() || null,
         priority: $("priorityInput").value,
         status: $("statusInput").value,
@@ -354,7 +468,8 @@
       const { error } = await client.from("team_tasks").insert(payload);
       if (error) return toast(error.message);
 
-      ["titleInput", "assigneeInput", "projectInput", "dueInput", "noteInput"].forEach(id => $(id).value = "");
+      ["titleInput", "projectInput", "dueInput", "noteInput", "customAssigneeInput"].forEach(id => $(id).value = "");
+      $("assigneeInput").value = "";
       $("priorityInput").value = "medium";
       $("statusInput").value = "open";
       toast("Aufgabe erstellt.");
@@ -377,7 +492,7 @@
     function filteredTasks() {
       const q = $("searchInput")?.value.toLowerCase().trim() || "";
       const p = $("filterPriority")?.value || "all";
-      const assignee = $("filterAssignee")?.value.toLowerCase().trim() || "";
+      const assignee = $("filterAssignee")?.value || "all";
       const done = $("filterDone")?.value || "show";
       const sort = $("sortInput")?.value || "created_desc";
 
@@ -385,7 +500,7 @@
         const hay = [t.title, t.assignee, t.project, t.note].filter(Boolean).join(" ").toLowerCase();
         return (!q || hay.includes(q))
           && (p === "all" || t.priority === p)
-          && (!assignee || (t.assignee || "").toLowerCase().includes(assignee))
+          && (assignee === "all" || t.assignee === assignee)
           && (done === "show" || t.status !== "done");
       });
 
@@ -446,7 +561,7 @@
         </div>
       `;
       div.querySelector('[data-action="status"]').addEventListener("change", e => updateTask(t.id, { status: e.target.value }));
-      div.querySelector('[data-action="mine"]').addEventListener("click", () => updateTask(t.id, { assignee: currentUser.email?.split("@")[0] || currentUser.email }));
+      div.querySelector('[data-action="mine"]').addEventListener("click", () => updateTask(t.id, { assignee: firstNameFromProfile(currentProfile) }));
       div.querySelector('[data-action="delete"]').addEventListener("click", () => deleteTask(t.id));
       return div;
     }
@@ -461,22 +576,17 @@
       realtimeChannel = client
         .channel("team_tasks_changes")
         .on("postgres_changes", { event: "*", schema: "public", table: "team_tasks" }, () => loadTasks())
+        .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => loadProfiles())
         .subscribe();
     }
 
-    ["loginBtn", "registerBtn", "logoutBtn", "addBtn", "refreshBtn"].forEach(id => {
-      window.addEventListener("DOMContentLoaded", () => {
-        const el = $(id);
-        if (!el) return;
-        if (id === "loginBtn") el.addEventListener("click", login);
-        if (id === "registerBtn") el.addEventListener("click", register);
-        if (id === "logoutBtn") el.addEventListener("click", logout);
-        if (id === "addBtn") el.addEventListener("click", addTask);
-        if (id === "refreshBtn") el.addEventListener("click", loadTasks);
-      });
-    });
-
     window.addEventListener("DOMContentLoaded", () => {
+      $("loginBtn")?.addEventListener("click", login);
+      $("registerBtn")?.addEventListener("click", register);
+      $("toggleRegisterBtn")?.addEventListener("click", () => setRegisterMode(!registerMode));
+      $("logoutBtn")?.addEventListener("click", logout);
+      $("addBtn")?.addEventListener("click", addTask);
+      $("refreshBtn")?.addEventListener("click", async () => { await loadProfiles(); await loadTasks(); });
       ["searchInput", "filterPriority", "filterAssignee", "filterDone", "sortInput"].forEach(id => $(id)?.addEventListener("input", renderBoard));
       init();
     });
