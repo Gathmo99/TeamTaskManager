@@ -116,16 +116,36 @@
     .colhead h2 { margin: 0; font-size: 17px; }
     .count { color: var(--muted); background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; font-size: 12px; }
 
-    .task { background: #10141f; border: 1px solid var(--line); border-radius: 16px; padding: 13px; margin-bottom: 12px; }
-    .task h3 { margin: 0 0 8px; font-size: 16px; }
+    .task { background: #10141f; border: 1px solid var(--line); border-radius: 14px; padding: 10px; margin-bottom: 10px; }
+    .task h3 {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.25;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
     .task-summary { cursor: pointer; user-select: none; }
-    .task-summary h3 { display: flex; align-items: center; gap: 7px; }
+    .task-summary h3 { display: flex; align-items: flex-start; gap: 6px; }
     .task-summary .summary-meta {
       display: grid;
-      gap: 5px;
+      gap: 4px;
       color: var(--muted);
-      font-size: 13px;
-      margin-top: 8px;
+      font-size: 11px;
+      line-height: 1.25;
+      margin-top: 7px;
+    }
+    .summary-line {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+    }
+    .summary-line span:last-child {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .task-details { display: none; margin-top: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
     .task.expanded .task-details { display: block; }
@@ -246,7 +266,7 @@
         <div class="brand">
           <h1>Team Task Board</h1>
           <p>Gemeinsame Aufgabenliste für Kollegen, Projekte und tägliche Feuerlöscherei.</p>
-          <div style="font-size:12px;color:#9aa4b2;margin-top:6px" id="lastChangeInfo">Letzte Änderung: Klappkarten eingeführt (Titel, Kunde, Zuständig & Kategorie sichtbar)</div>
+          <div style="font-size:12px;color:#9aa4b2;margin-top:6px" id="lastChangeInfo">Letzte Änderung: Spalten zentrieren sich automatisch wenn Erledigt ausgeblendet ist</div>
         </div>
         <div class="userbox">
           <span id="userName"></span>
@@ -764,6 +784,10 @@ function setRegisterMode(value) {
       const list = configured ? filteredTasks() : [];
 
       const showDone = $("showDoneCheckbox")?.checked || false;
+
+      board.style.gridTemplateColumns = showDone
+        ? "repeat(4, minmax(250px, 1fr))"
+        : "repeat(3, minmax(250px, 1fr))";
       for (const col of columns) {
         if (col.id === "done" && !showDone) continue;
         const colTasks = list.filter(t => t.status === col.id);
@@ -833,9 +857,12 @@ function setRegisterMode(value) {
         <div class="task-summary" data-action="toggle">
           <h3><span class="task-chevron">▶</span>${escapeHtml(t.title)}</h3>
           <div class="summary-meta">
-            ${t.project ? `<span>🏢 ${escapeHtml(t.project)}</span>` : `<span>🏢 Kein Kunde / Projekt</span>`}
-            ${t.assignee ? `<span>👤 ${escapeHtml(t.assignee)}</span>` : `<span>👤 Nicht zugewiesen</span>`}
-            ${t.category ? `<span>🏷️ ${escapeHtml(t.category)}</span>` : `<span>🏷️ Keine Kategorie</span>`}
+            ${t.project ? `<div class="summary-line"><span>🏢</span><span>${escapeHtml(t.project)}</span></div>` : `<div class="summary-line"><span>🏢</span><span>Kein Kunde / Projekt</span></div>`}
+            <div class="summary-line">
+              <span>👤</span><span>${escapeHtml(t.assignee || "Nicht zugewiesen")}</span>
+              <span style="margin-left:10px">🏷️</span><span>${escapeHtml(t.category || "Keine Kategorie")}</span>
+            </div>
+            ${t.due_date ? `<div class="summary-line"><span>📅</span><span>${escapeHtml(dueInfo(t.due_date).label)}</span></div>` : ""}
           </div>
         </div>
 
