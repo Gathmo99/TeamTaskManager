@@ -107,7 +107,7 @@
     .btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--muted); }
     .btn.small { padding: 7px 10px; font-size: 13px; }
 
-    .toolbar { padding: 16px; display: grid; grid-template-columns: 1.4fr repeat(4, minmax(130px, .7fr)) auto; gap: 12px; align-items: end; margin-bottom: 18px; }
+    .toolbar { padding: 16px; display: grid; grid-template-columns: 1.4fr repeat(5, minmax(120px, .7fr)) auto; gap: 12px; align-items: end; margin-bottom: 18px; }
     .composer { padding: 18px; margin-bottom: 18px; }
 
     .board { display: grid; grid-template-columns: repeat(4, minmax(250px, 1fr)); gap: 16px; align-items: start; }
@@ -266,7 +266,7 @@
         <div class="brand">
           <h1>Team Task Board</h1>
           <p>Gemeinsame Aufgabenliste für Kollegen, Projekte und tägliche Feuerlöscherei.</p>
-          <div style="font-size:12px;color:#9aa4b2;margin-top:6px" id="lastChangeInfo">Letzte Änderung: Spalten zentrieren sich automatisch wenn Erledigt ausgeblendet ist</div>
+          <div style="font-size:12px;color:#9aa4b2;margin-top:6px" id="lastChangeInfo">Letzte Änderung: Archiv-Ansicht + Erledigt-Datum ergänzt</div>
         </div>
         <div class="userbox">
           <span id="userName"></span>
@@ -401,6 +401,10 @@
           <input id="showDoneCheckbox" type="checkbox" style="width:auto">
           Erledigte Aufgaben anzeigen
         </label>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:22px;">
+          <input id="showArchiveCheckbox" type="checkbox" style="width:auto">
+          📦 Archiv anzeigen
+        </label>
         <label>Sortierung
           <select id="sortInput">
             <option value="created_desc">Neueste zuerst</option>
@@ -430,6 +434,7 @@
       { id: "progress", title: "In Bearbeitung" },
       { id: "waiting", title: "Wartet" },
       { id: "done", title: "Erledigt" },
+      { id: "archive", title: "Archiv" },
     ];
 
     const $ = (id) => document.getElementById(id);
@@ -451,7 +456,7 @@
     }
 
     function statusLabel(value) {
-      return { open: "Offen", progress: "In Bearbeitung", waiting: "Wartet", done: "Erledigt" }[value] || value;
+      return { open: "Offen", progress: "In Bearbeitung", waiting: "Wartet", done: "Erledigt", archive: "Archiv" }[value] || value;
     }
 
     function displayName(profile) {
@@ -750,12 +755,18 @@ function setRegisterMode(value) {
       return new Date(task.completed_at) < archiveCutoff();
     }
 
+    function completedAtLabel(task) {
+      if (!task.completed_at) return null;
+      return new Date(task.completed_at).toLocaleString("de-DE");
+    }
+
     function filteredTasks() {
       const q = $("searchInput")?.value.toLowerCase().trim() || "";
       const p = $("filterPriority")?.value || "all";
       const assignee = $("filterAssignee")?.value || "all";
       const category = $("filterCategory")?.value || "all";
       const showDone = $("showDoneCheckbox")?.checked || false;
+      const showArchive = $("showArchiveCheckbox")?.checked || false;
       const sort = $("sortInput")?.value || "created_desc";
 
       let list = tasks.filter(t => {
@@ -764,7 +775,10 @@ function setRegisterMode(value) {
           && (p === "all" || t.priority === p)
           && (category === "all" || t.category === category)
           && (assignee === "all" || t.assignee === assignee)
-          && (showDone ? true : t.status !== "done");
+          && (
+            t.status !== "done"
+            || (isArchivedTask(t) ? showArchive : showDone)
+          );
       });
 
       if (sort === "due_asc") {
@@ -863,6 +877,7 @@ function setRegisterMode(value) {
               <span style="margin-left:10px">🏷️</span><span>${escapeHtml(t.category || "Keine Kategorie")}</span>
             </div>
             ${t.due_date ? `<div class="summary-line"><span>📅</span><span>${escapeHtml(dueInfo(t.due_date).label)}</span></div>` : ""}
+            ${t.status === "done" && completedAtLabel(t) ? `<div class="summary-line"><span>✅</span><span>Erledigt am ${escapeHtml(completedAtLabel(t))}</span></div>` : ""}
           </div>
         </div>
 
@@ -871,6 +886,7 @@ function setRegisterMode(value) {
             <span class="pill ${t.priority}">${priorityLabel(t.priority)}</span>
             ${t.internal_contact ? `<span class="pill">☎ ${escapeHtml(t.internal_contact)}</span>` : ""}
             ${t.due_date ? `<span class="pill ${dueInfo(t.due_date).className}">📅 ${escapeHtml(dueInfo(t.due_date).label)}</span>` : ""}
+            ${t.status === "done" && completedAtLabel(t) ? `<span class="pill">✅ Erledigt am ${escapeHtml(completedAtLabel(t))}</span>` : ""}
             ${isArchivedTask(t) ? `<span class="pill archived">📦 Archiv</span>` : ""}
           </div>
 
@@ -957,6 +973,7 @@ function setRegisterMode(value) {
       $("refreshBtn")?.addEventListener("click", async () => { await loadProfiles(); await loadTasks(); });
       ["searchInput", "filterPriority", "filterCategory", "filterAssignee", "sortInput"].forEach(id => $(id)?.addEventListener("input", renderBoard));
       $("showDoneCheckbox")?.addEventListener("change", renderBoard);
+      $("showArchiveCheckbox")?.addEventListener("change", renderBoard);
       init();
     });
   </script>
