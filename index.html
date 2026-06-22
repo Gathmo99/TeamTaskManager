@@ -205,6 +205,71 @@
       white-space:pre-wrap;
     }
 
+    .checklist-box {
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255,255,255,.025);
+    }
+    .checklist-box strong {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .checklist-progress {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .checklist-list {
+      display: grid;
+      gap: 6px;
+      margin-bottom: 9px;
+    }
+    .checklist-item {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text);
+      padding: 6px 7px;
+      border: 1px solid rgba(255,255,255,.06);
+      border-radius: 10px;
+      background: rgba(255,255,255,.025);
+    }
+    .checklist-item.done span {
+      text-decoration: line-through;
+      color: var(--muted);
+    }
+    .checklist-item input {
+      width: auto;
+      accent-color: var(--accent);
+    }
+    .checklist-delete {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 6px;
+    }
+    .checklist-delete:hover {
+      color: #fecaca;
+      background: rgba(239,68,68,.10);
+    }
+    .checklist-add {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 7px;
+    }
+    .checklist-add input {
+      padding: 8px 9px;
+      font-size: 13px;
+    }
+
     .actions { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
     .reassign-row {
       display: grid;
@@ -266,7 +331,7 @@
         <div class="brand">
           <h1>Team Task Board</h1>
           <p>Gemeinsame Aufgabenliste für Kollegen, Projekte und tägliche Feuerlöscherei.</p>
-          <div style="font-size:12px;color:#9aa4b2;margin-top:6px" id="lastChangeInfo">Letzte Änderung: Archiv-Spalte korrekt als eigene Spalte dargestellt</div>
+          <div style="font-size:12px;color:#9aa4b2;margin-top:6px" id="lastChangeInfo">Letzte Änderung: Checklisten pro Aufgabe ergänzt</div>
         </div>
         <div class="userbox">
           <span id="userName"></span>
@@ -711,6 +776,7 @@ function setRegisterMode(value) {
         internal_contact: $("contactInput").value.trim() || null,
         category: customCategory || selectedCategory || null,
         progress_note: null,
+        checklist: [],
         priority: $("priorityInput").value,
         status: $("statusInput").value,
         completed_at: $("statusInput").value === "done" ? new Date().toISOString() : null,
@@ -770,7 +836,8 @@ function setRegisterMode(value) {
       const sort = $("sortInput")?.value || "created_desc";
 
       let list = tasks.filter(t => {
-        const hay = [t.title, t.assignee, t.project, t.internal_contact, t.category, t.note, t.progress_note].filter(Boolean).join(" ").toLowerCase();
+        const checklistText = checklistItems(t).map(item => item.text).join(" ");
+        const hay = [t.title, t.assignee, t.project, t.internal_contact, t.category, t.note, t.progress_note, checklistText].filter(Boolean).join(" ").toLowerCase();
         return (!q || hay.includes(q))
           && (p === "all" || t.priority === p)
           && (category === "all" || t.category === category)
@@ -857,6 +924,81 @@ function setRegisterMode(value) {
       return { label: `Fällig am ${dueDate}`, className: "due-muted" };
     }
 
+
+    function checklistItems(task) {
+      if (Array.isArray(task.checklist)) return task.checklist;
+      if (typeof task.checklist === "string") {
+        try {
+          const parsed = JSON.parse(task.checklist);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return [];
+    }
+
+    function checklistStats(task) {
+      const items = checklistItems(task);
+      const done = items.filter(item => item.done).length;
+      const total = items.length;
+      const percent = total ? Math.round((done / total) * 100) : 0;
+      return { done, total, percent };
+    }
+
+    async function updateChecklist(task, nextChecklist) {
+      await updateTask(task.id, { checklist: nextChecklist });
+    }
+
+    async function addChecklistItem(task, input) {
+      const text = input.value.trim();
+      if (!text) return;
+      const nextChecklist = [
+        ...checklistItems(task),
+        { id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())), text, done: false }
+      ];
+      input.value = "";
+      await updateChecklist(task, nextChecklist);
+    }
+
+    async function toggleChecklistItem(task, itemId, done) {
+      const nextChecklist = checklistItems(task).map(item =>
+        item.id === itemId ? { ...item, done } : item
+      );
+      await updateChecklist(task, nextChecklist);
+    }
+
+    async function deleteChecklistItem(task, itemId) {
+      const nextChecklist = checklistItems(task).filter(item => item.id !== itemId);
+      await updateChecklist(task, nextChecklist);
+    }
+
+    function checklistHtml(task) {
+      const items = checklistItems(task);
+      const stats = checklistStats(task);
+      const list = items.length
+        ? items.map(item => `
+            <div class="checklist-item ${item.done ? "done" : ""}">
+              <input type="checkbox" data-action="checkItem" data-id="${escapeHtml(item.id)}" ${item.done ? "checked" : ""}>
+              <span>${escapeHtml(item.text)}</span>
+              <button class="checklist-delete" data-action="deleteCheckItem" data-id="${escapeHtml(item.id)}" title="Punkt löschen">🗑️</button>
+            </div>
+          `).join("")
+        : `<div class="empty">Noch keine Checklistenpunkte.</div>`;
+
+      return `
+        <div class="checklist-box">
+          <strong>Checkliste</strong>
+          <div class="checklist-progress">Fortschritt: ${stats.done} / ${stats.total} (${stats.percent}%)</div>
+          <div class="checklist-list">${list}</div>
+          <div class="checklist-add">
+            <input data-action="newCheckItem" placeholder="Neuen Punkt schreiben...">
+            <button class="btn secondary small" data-action="addCheckItem">Hinzufügen</button>
+          </div>
+        </div>
+      `;
+    }
+
     function assigneeOptions(selectedAssignee) {
       const profileOptions = profiles
         .map(p => {
@@ -913,9 +1055,11 @@ function setRegisterMode(value) {
             <div class="history-log">${escapeHtml(t.progress_note || "Noch keine Einträge.")}</div>
           </div>
 
+          ${checklistHtml(t)}
+
           <div class="actions">
             <select data-action="status">
-              ${columns.map(c => `<option value="${c.id}" ${t.status === c.id ? "selected" : ""}>${statusLabel(c.id)}</option>`).join("")}
+              ${columns.filter(c => c.id !== "archive").map(c => `<option value="${c.id}" ${t.status === c.id ? "selected" : ""}>${statusLabel(c.id)}</option>`).join("")}
             </select>
             <button class="btn secondary small" data-action="mine">Mir zuweisen</button>
             <button class="btn danger small" data-action="delete">Löschen</button>
@@ -950,6 +1094,24 @@ function setRegisterMode(value) {
         const existing = t.progress_note || '';
         const entry = `[${stamp}] ${user}: ${value}`;
         updateTask(t.id, { progress_note: existing ? existing + '\n\n' + entry : entry });
+      });
+      div.querySelector('[data-action="addCheckItem"]').addEventListener("click", () => {
+        addChecklistItem(t, div.querySelector('[data-action="newCheckItem"]'));
+      });
+      div.querySelector('[data-action="newCheckItem"]').addEventListener("keydown", e => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          addChecklistItem(t, e.target);
+        }
+      });
+      div.querySelectorAll('[data-action="checkItem"]').forEach(input => {
+        input.addEventListener("change", e => toggleChecklistItem(t, e.target.dataset.id, e.target.checked));
+      });
+      div.querySelectorAll('[data-action="deleteCheckItem"]').forEach(button => {
+        button.addEventListener("click", e => {
+          e.stopPropagation();
+          deleteChecklistItem(t, e.currentTarget.dataset.id);
+        });
       });
       div.querySelector('[data-action="reassignBtn"]').addEventListener("click", () => {
         const value = div.querySelector('[data-action="reassign"]').value;
