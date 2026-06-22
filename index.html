@@ -331,7 +331,7 @@
         <div class="brand">
           <h1>Team Task Board</h1>
           <p>Gemeinsame Aufgabenliste für Kollegen, Projekte und tägliche Feuerlöscherei.</p>
-          <div style="font-size:12px;color:#9aa4b2;margin-top:6px" id="lastChangeInfo">Letzte Änderung: Checklisten pro Aufgabe ergänzt</div>
+          <div style="font-size:12px;color:#9aa4b2;margin-top:6px" id="lastChangeInfo">Letzte Änderung: geöffnete Aufgaben bleiben nach Änderungen aufgeklappt</div>
         </div>
         <div class="userbox">
           <span id="userName"></span>
@@ -508,6 +508,7 @@
     let tasks = [];
     let profiles = [];
     let registerMode = false;
+    const expandedTaskIds = new Set();
 
     function toast(message) {
       const box = $("toast");
@@ -947,6 +948,7 @@ function setRegisterMode(value) {
     }
 
     async function updateChecklist(task, nextChecklist) {
+      expandedTaskIds.add(task.id);
       await updateTask(task.id, { checklist: nextChecklist });
     }
 
@@ -1017,15 +1019,17 @@ function setRegisterMode(value) {
     }
 
     async function reassignTask(id, assignee) {
+      expandedTaskIds.add(id);
       await updateTask(id, { assignee: assignee || null });
     }
 
     function taskCard(t) {
       const div = document.createElement("article");
       div.className = "task";
+      if (expandedTaskIds.has(t.id)) div.classList.add("expanded");
       div.innerHTML = `
         <div class="task-summary" data-action="toggle">
-          <h3><span class="task-chevron">▶</span>${escapeHtml(t.title)}</h3>
+          <h3><span class="task-chevron">${expandedTaskIds.has(t.id) ? "▼" : "▶"}</span>${escapeHtml(t.title)}</h3>
           <div class="summary-meta">
             ${t.project ? `<div class="summary-line"><span>🏢</span><span>${escapeHtml(t.project)}</span></div>` : `<div class="summary-line"><span>🏢</span><span>Kein Kunde / Projekt</span></div>`}
             <div class="summary-line">
@@ -1074,17 +1078,26 @@ function setRegisterMode(value) {
       `;
       div.querySelector('[data-action="toggle"]').addEventListener("click", () => {
         div.classList.toggle("expanded");
+        if (div.classList.contains("expanded")) {
+          expandedTaskIds.add(t.id);
+        } else {
+          expandedTaskIds.delete(t.id);
+        }
         const chevron = div.querySelector(".task-chevron");
         chevron.textContent = div.classList.contains("expanded") ? "▼" : "▶";
       });
       div.querySelector('[data-action="status"]').addEventListener("change", e => {
         const newStatus = e.target.value;
+        expandedTaskIds.add(t.id);
         updateTask(t.id, {
           status: newStatus,
           completed_at: newStatus === "done" ? (t.completed_at || new Date().toISOString()) : null
         });
       });
-      div.querySelector('[data-action="mine"]').addEventListener("click", () => updateTask(t.id, { assignee: firstNameFromProfile(currentProfile) }));
+      div.querySelector('[data-action="mine"]').addEventListener("click", () => {
+        expandedTaskIds.add(t.id);
+        updateTask(t.id, { assignee: firstNameFromProfile(currentProfile) });
+      });
       div.querySelector('[data-action="delete"]').addEventListener("click", () => deleteTask(t.id));
       div.querySelector('[data-action="saveProgressNote"]').addEventListener("click", () => {
         const value = div.querySelector('[data-action="progressNote"]').value.trim();
@@ -1093,6 +1106,7 @@ function setRegisterMode(value) {
         const user = (currentProfile?.first_name || 'User');
         const existing = t.progress_note || '';
         const entry = `[${stamp}] ${user}: ${value}`;
+        expandedTaskIds.add(t.id);
         updateTask(t.id, { progress_note: existing ? existing + '\n\n' + entry : entry });
       });
       div.querySelector('[data-action="addCheckItem"]').addEventListener("click", () => {
