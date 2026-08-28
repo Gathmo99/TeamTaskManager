@@ -282,6 +282,7 @@
     }
     .reassign-row select { min-width: 150px; }
     .empty { color: var(--muted); border: 1px dashed var(--line); border-radius: 14px; padding: 18px; text-align: center; }
+    .edit-box textarea { min-height: 70px; }
 
     .toast { position: fixed; right: 20px; bottom: 20px; background: #111827; border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; color: var(--text); box-shadow: var(--shadow); max-width: 420px; }
     .setup-warning { padding: 14px 16px; margin-bottom: 18px; border-color: rgba(245,158,11,.35); color: #fde68a; }
@@ -335,7 +336,7 @@
         <div class="brand">
           <h1>Team Task Board</h1>
           <p>Gemeinsame Aufgabenliste für Kollegen, Projekte und tägliche Feuerlöscherei.</p>
-          <div style="font-size:12px;color:#9aa4b2;margin-top:6px" id="lastChangeInfo">Letzte Änderung: „Nur lokal testen“-Modus hinzugefügt (Aufgaben laufen offline über localStorage)</div>
+          <div style="font-size:12px;color:#9aa4b2;margin-top:6px" id="lastChangeInfo">Letzte Änderung: Aufgaben können jetzt vollständig bearbeitet werden („Bearbeiten“-Button pro Aufgabe)</div>
         </div>
         <div class="userbox">
           <span id="userName"></span>
@@ -513,6 +514,9 @@
     let profiles = [];
     let registerMode = false;
     const expandedTaskIds = new Set();
+    const editingTaskIds = new Set();
+
+    const CATEGORY_OPTIONS = ["Support", "Kunde", "Hardware", "Software", "Versand", "Admin", "Intern", "Sonstiges"];
 
     // ---- Lokaler Testmodus: alles bleibt im Browser (localStorage), keine Cloud-Verbindung ----
     let localMode = false;
@@ -1121,6 +1125,58 @@ function setRegisterMode(value) {
       await updateTask(id, { assignee: assignee || null });
     }
 
+    function categorySelectHtml(selected) {
+      const known = CATEGORY_OPTIONS.includes(selected);
+      return `<option value="" ${!selected ? "selected" : ""}>Keine Kategorie</option>`
+        + CATEGORY_OPTIONS.map(c => `<option value="${escapeHtml(c)}" ${c === selected ? "selected" : ""}>${escapeHtml(c)}</option>`).join("")
+        + (selected && !known ? `<option value="${escapeHtml(selected)}" selected>${escapeHtml(selected)}</option>` : "");
+    }
+
+    function editTaskHtml(t) {
+      return `
+        <div class="edit-box">
+          <div class="grid three">
+            <label>Aufgabe
+              <input data-field="title" value="${escapeHtml(t.title || "")}">
+            </label>
+            <label>Zuständig
+              <select data-field="assignee">${assigneeOptions(t.assignee)}</select>
+            </label>
+            <label>Kunde / Projekt
+              <input data-field="project" value="${escapeHtml(t.project || "")}">
+            </label>
+          </div>
+          <div class="grid three" style="margin-top:12px">
+            <label>Interner Ansprechpartner
+              <input data-field="internal_contact" value="${escapeHtml(t.internal_contact || "")}">
+            </label>
+            <label>Kategorie
+              <select data-field="category">${categorySelectHtml(t.category || "")}</select>
+            </label>
+            <label>Priorität
+              <select data-field="priority">
+                <option value="high" ${t.priority === "high" ? "selected" : ""}>Hoch</option>
+                <option value="medium" ${t.priority === "medium" ? "selected" : ""}>Mittel</option>
+                <option value="low" ${t.priority === "low" ? "selected" : ""}>Niedrig</option>
+              </select>
+            </label>
+          </div>
+          <div class="grid two" style="margin-top:12px">
+            <label>Fällig
+              <input data-field="due_date" type="date" value="${escapeHtml(t.due_date || "")}">
+            </label>
+            <label>Notiz
+              <textarea data-field="note">${escapeHtml(t.note || "")}</textarea>
+            </label>
+          </div>
+          <div class="actions">
+            <button class="btn small" data-action="saveEdit">Speichern</button>
+            <button class="btn ghost small" data-action="cancelEdit">Abbrechen</button>
+          </div>
+        </div>
+      `;
+    }
+
     function taskCard(t) {
       const div = document.createElement("article");
       div.className = "task";
@@ -1140,6 +1196,8 @@ function setRegisterMode(value) {
         </div>
 
         <div class="task-details">
+          ${editingTaskIds.has(t.id) ? editTaskHtml(t) : `
+          <div class="view-mode">
           <div class="meta">
             <span class="pill ${t.priority}">${priorityLabel(t.priority)}</span>
             ${t.internal_contact ? `<span class="pill">☎ ${escapeHtml(t.internal_contact)}</span>` : ""}
@@ -1163,6 +1221,7 @@ function setRegisterMode(value) {
             <select data-action="status">
               ${columns.filter(c => c.id !== "archive").map(c => `<option value="${c.id}" ${t.status === c.id ? "selected" : ""}>${statusLabel(c.id)}</option>`).join("")}
             </select>
+            <button class="btn secondary small" data-action="edit">Bearbeiten</button>
             <button class="btn secondary small" data-action="mine">Mir zuweisen</button>
             <button class="btn danger small" data-action="delete">Löschen</button>
             <div class="reassign-row">
@@ -1172,6 +1231,8 @@ function setRegisterMode(value) {
               <button class="btn secondary small" data-action="reassignBtn">Neu zuweisen</button>
             </div>
           </div>
+          </div>
+          `}
         </div>
       `;
       div.querySelector('[data-action="toggle"]').addEventListener("click", () => {
@@ -1184,7 +1245,7 @@ function setRegisterMode(value) {
         const chevron = div.querySelector(".task-chevron");
         chevron.textContent = div.classList.contains("expanded") ? "▼" : "▶";
       });
-      div.querySelector('[data-action="status"]').addEventListener("change", e => {
+      div.querySelector('[data-action="status"]')?.addEventListener("change", e => {
         const newStatus = e.target.value;
         expandedTaskIds.add(t.id);
         updateTask(t.id, {
@@ -1192,12 +1253,39 @@ function setRegisterMode(value) {
           completed_at: newStatus === "done" ? (t.completed_at || new Date().toISOString()) : null
         });
       });
-      div.querySelector('[data-action="mine"]').addEventListener("click", () => {
+      div.querySelector('[data-action="edit"]')?.addEventListener("click", () => {
+        expandedTaskIds.add(t.id);
+        editingTaskIds.add(t.id);
+        renderBoard();
+      });
+      div.querySelector('[data-action="cancelEdit"]')?.addEventListener("click", () => {
+        editingTaskIds.delete(t.id);
+        renderBoard();
+      });
+      div.querySelector('[data-action="saveEdit"]')?.addEventListener("click", () => {
+        const box = div.querySelector(".edit-box");
+        const val = (field) => box.querySelector(`[data-field="${field}"]`).value;
+        const patch = {
+          title: val("title").trim() || t.title,
+          assignee: val("assignee") || null,
+          project: val("project").trim() || null,
+          internal_contact: val("internal_contact").trim() || null,
+          category: val("category") || null,
+          priority: val("priority"),
+          due_date: val("due_date") || null,
+          note: val("note").trim() || null,
+        };
+        editingTaskIds.delete(t.id);
+        expandedTaskIds.add(t.id);
+        updateTask(t.id, patch);
+        toast("Aufgabe aktualisiert.");
+      });
+      div.querySelector('[data-action="mine"]')?.addEventListener("click", () => {
         expandedTaskIds.add(t.id);
         updateTask(t.id, { assignee: firstNameFromProfile(currentProfile) });
       });
-      div.querySelector('[data-action="delete"]').addEventListener("click", () => deleteTask(t.id));
-      div.querySelector('[data-action="saveProgressNote"]').addEventListener("click", () => {
+      div.querySelector('[data-action="delete"]')?.addEventListener("click", () => deleteTask(t.id));
+      div.querySelector('[data-action="saveProgressNote"]')?.addEventListener("click", () => {
         const value = div.querySelector('[data-action="progressNote"]').value.trim();
         if(!value) return;
         const stamp = new Date().toLocaleString('de-DE');
@@ -1207,10 +1295,10 @@ function setRegisterMode(value) {
         expandedTaskIds.add(t.id);
         updateTask(t.id, { progress_note: existing ? existing + '\n\n' + entry : entry });
       });
-      div.querySelector('[data-action="addCheckItem"]').addEventListener("click", () => {
+      div.querySelector('[data-action="addCheckItem"]')?.addEventListener("click", () => {
         addChecklistItem(t, div.querySelector('[data-action="newCheckItem"]'));
       });
-      div.querySelector('[data-action="newCheckItem"]').addEventListener("keydown", e => {
+      div.querySelector('[data-action="newCheckItem"]')?.addEventListener("keydown", e => {
         if (e.key === "Enter") {
           e.preventDefault();
           addChecklistItem(t, e.target);
@@ -1225,11 +1313,11 @@ function setRegisterMode(value) {
           deleteChecklistItem(t, e.currentTarget.dataset.id);
         });
       });
-      div.querySelector('[data-action="reassignBtn"]').addEventListener("click", () => {
+      div.querySelector('[data-action="reassignBtn"]')?.addEventListener("click", () => {
         const value = div.querySelector('[data-action="reassign"]').value;
         reassignTask(t.id, value);
       });
-      div.querySelector('[data-action="reassign"]').addEventListener("change", e => reassignTask(t.id, e.target.value));
+      div.querySelector('[data-action="reassign"]')?.addEventListener("change", e => reassignTask(t.id, e.target.value));
       return div;
     }
 
