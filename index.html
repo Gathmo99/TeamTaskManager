@@ -105,7 +105,9 @@
     .btn.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
     .btn.danger { background: var(--danger); }
     .btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--muted); }
+    .btn.warn { background: var(--warn); color: #1a1300; }
     .btn.small { padding: 7px 10px; font-size: 13px; }
+    .local-badge { color: var(--warn); border: 1px solid rgba(245,158,11,.5); background: rgba(245,158,11,.1); border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 700; }
 
     .toolbar { padding: 16px; display: grid; grid-template-columns: 1.4fr repeat(5, minmax(120px, .7fr)) auto; gap: 12px; align-items: end; margin-bottom: 18px; }
     .composer { padding: 18px; margin-bottom: 18px; }
@@ -322,7 +324,9 @@
         <button class="btn secondary" id="registerBtn">Registrieren</button>
         <button class="btn ghost hidden" id="backToLoginBtn">Zurück zum Login</button>
         <button class="btn ghost" id="resetPasswordBtn" type="button">Passwort vergessen?</button>
+        <button class="btn warn" id="localModeBtn" type="button">Nur lokal testen</button>
         <p class="muted-note">Beim Registrieren wird dein Vorname gespeichert. „Mir zuweisen“ nutzt danach z. B. „Max“ statt „m.mustermann“.</p>
+        <p class="muted-note">Im lokalen Testmodus bleiben alle Aufgaben nur in deinem Browser (localStorage) – keine Cloud-Verbindung, keine Kollegen sehen etwas davon.</p>
       </div>
     </section>
 
@@ -510,6 +514,45 @@
     let registerMode = false;
     const expandedTaskIds = new Set();
 
+    // ---- Lokaler Testmodus: alles bleibt im Browser (localStorage), keine Cloud-Verbindung ----
+    let localMode = false;
+    const LOCAL_KEY = "ttm_local_state_v1";
+    let localState = { tasks: [], profiles: [] };
+
+    function loadLocalState() {
+      try {
+        localState = JSON.parse(localStorage.getItem(LOCAL_KEY)) || { tasks: [], profiles: [] };
+      } catch {
+        localState = { tasks: [], profiles: [] };
+      }
+      if (!localState.profiles.length) {
+        localState.profiles = [{ id: "local-user", first_name: "Test", last_name: "User", email: "lokal@test" }];
+      }
+    }
+
+    function saveLocalState() {
+      localStorage.setItem(LOCAL_KEY, JSON.stringify(localState));
+    }
+
+    function enterLocalMode() {
+      localMode = true;
+      loadLocalState();
+      currentUser = { id: "local-user", email: "Lokaler Testmodus" };
+      currentProfile = localState.profiles.find(p => p.id === "local-user");
+      $("authView").classList.add("hidden");
+      $("appView").classList.remove("hidden");
+      $("userName").textContent = displayName(currentProfile);
+      $("userEmail").textContent = "Lokaler Testmodus";
+      const badge = document.createElement("span");
+      badge.className = "local-badge";
+      badge.id = "localBadge";
+      badge.textContent = "🧪 Lokaler Testmodus";
+      $("userEmail").after(badge);
+      loadProfiles();
+      loadTasks();
+      toast("Lokalmodus aktiv – keine Cloud-Verbindung, Daten bleiben nur in diesem Browser.");
+    }
+
     function toast(message) {
       const box = $("toast");
       box.textContent = message;
@@ -614,6 +657,11 @@
     }
 
     async function loadProfiles() {
+      if (localMode) {
+        profiles = [...localState.profiles].sort((a, b) => (a.first_name || "").localeCompare(b.first_name || ""));
+        renderProfileSelects();
+        return;
+      }
       const { data, error } = await client
         .from("profiles")
         .select("id, first_name, last_name, email")
@@ -726,6 +774,18 @@ function setRegisterMode(value) {
 
       if (!firstName || !lastName) return toast("Bitte Vorname und Nachname eintragen.");
 
+      if (localMode) {
+        const updated = { id: currentUser.id, first_name: firstName, last_name: lastName, email: currentUser.email };
+        const idx = localState.profiles.findIndex(p => p.id === currentUser.id);
+        if (idx !== -1) localState.profiles[idx] = updated; else localState.profiles.push(updated);
+        saveLocalState();
+        currentProfile = updated;
+        $("userName").textContent = displayName(currentProfile);
+        await loadProfiles();
+        toast("Profil gespeichert.");
+        return;
+      }
+
       const { data, error } = await client
         .from("profiles")
         .upsert({
@@ -746,12 +806,28 @@ function setRegisterMode(value) {
     }
 
     async function logout() {
+      if (localMode) {
+        localMode = false;
+        currentUser = null;
+        currentProfile = null;
+        profiles = [];
+        tasks = [];
+        document.getElementById("localBadge")?.remove();
+        $("appView").classList.add("hidden");
+        $("authView").classList.remove("hidden");
+        return;
+      }
       await client.auth.signOut();
       currentProfile = null;
       profiles = [];
     }
 
     async function loadTasks() {
+      if (localMode) {
+        tasks = [...localState.tasks].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+        renderBoard();
+        return;
+      }
       const { data, error } = await client
         .from("team_tasks")
         .select("*")
@@ -786,8 +862,17 @@ function setRegisterMode(value) {
         created_by: currentUser.id,
       };
 
-      const { error } = await client.from("team_tasks").insert(payload);
-      if (error) return toast(error.message);
+      if (localMode) {
+        localState.tasks.push({
+          id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
+          created_at: new Date().toISOString(),
+          ...payload,
+        });
+        saveLocalState();
+      } else {
+        const { error } = await client.from("team_tasks").insert(payload);
+        if (error) return toast(error.message);
+      }
 
       ["titleInput", "projectInput", "contactInput", "dueInput", "noteInput", "customAssigneeInput", "customCategoryInput"].forEach(id => $(id).value = "");
       $("assigneeInput").value = "";
@@ -799,6 +884,13 @@ function setRegisterMode(value) {
     }
 
     async function updateTask(id, patch) {
+      if (localMode) {
+        const idx = localState.tasks.findIndex(t => t.id === id);
+        if (idx !== -1) localState.tasks[idx] = { ...localState.tasks[idx], ...patch };
+        saveLocalState();
+        await loadTasks();
+        return;
+      }
       const { error } = await client.from("team_tasks").update(patch).eq("id", id);
       if (error) return toast(error.message);
       await loadTasks();
@@ -806,6 +898,12 @@ function setRegisterMode(value) {
 
     async function deleteTask(id) {
       if (!confirm("Aufgabe wirklich löschen?")) return;
+      if (localMode) {
+        localState.tasks = localState.tasks.filter(t => t.id !== id);
+        saveLocalState();
+        await loadTasks();
+        return;
+      }
       const { error } = await client.from("team_tasks").delete().eq("id", id);
       if (error) return toast(error.message);
       await loadTasks();
@@ -876,7 +974,7 @@ function setRegisterMode(value) {
 
       board.style.gridTemplateColumns = `repeat(${visibleColumns.length}, minmax(250px, 1fr))`;
 
-      const baseList = configured ? filteredTasks() : [];
+      const baseList = (configured || localMode) ? filteredTasks() : [];
 
       for (const col of visibleColumns) {
         const colTasks = baseList.filter(t => {
@@ -1154,6 +1252,7 @@ function setRegisterMode(value) {
       $("registerBtn")?.addEventListener("click", register);
       $("backToLoginBtn")?.addEventListener("click", showLoginForm);
       $("resetPasswordBtn")?.addEventListener("click", resetPassword);
+      $("localModeBtn")?.addEventListener("click", enterLocalMode);
       $("profileBtn")?.addEventListener("click", toggleProfilePanel);
       $("saveProfileBtn")?.addEventListener("click", saveProfile);
       $("dueCalendarBtn")?.addEventListener("click", openDueCalendar);
