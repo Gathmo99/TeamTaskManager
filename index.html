@@ -336,7 +336,7 @@
         <div class="brand">
           <h1>Team Task Board</h1>
           <p>Gemeinsame Aufgabenliste für Kollegen, Projekte und tägliche Feuerlöscherei.</p>
-          <div style="font-size:12px;color:#9aa4b2;margin-top:6px" id="lastChangeInfo">Letzte Änderung: Aufgaben können jetzt vollständig bearbeitet werden („Bearbeiten“-Button pro Aufgabe)</div>
+          <div style="font-size:12px;color:#9aa4b2;margin-top:6px" id="lastChangeInfo">Letzte Änderung: Geschätzter Zeitaufwand (Std.) pro Aufgabe hinzugefügt</div>
         </div>
         <div class="userbox">
           <span id="userName"></span>
@@ -428,6 +428,11 @@
               <button class="calendar-btn" id="dueCalendarBtn" type="button" title="Kalender öffnen">📅</button>
             </span>
           </label>
+          <label>Geschätzter Aufwand (Std.)
+            <input id="estimateInput" type="number" min="0" step="0.5" placeholder="z. B. 2">
+          </label>
+        </div>
+        <div class="grid" style="margin-top:14px">
           <label>Notiz
             <textarea id="noteInput" placeholder="Optional: Kontext, Rückruf, Link, kleine Randnotiz aus dem Maschinenraum"></textarea>
           </label>
@@ -562,6 +567,12 @@
       box.textContent = message;
       box.classList.remove("hidden");
       setTimeout(() => box.classList.add("hidden"), 3400);
+    }
+
+    function formatHours(hours) {
+      const n = Number(hours);
+      const rounded = Math.round(n * 100) / 100;
+      return `${rounded}h`.replace(".", ",");
     }
 
     function priorityLabel(value) {
@@ -862,6 +873,7 @@ function setRegisterMode(value) {
         status: $("statusInput").value,
         completed_at: $("statusInput").value === "done" ? new Date().toISOString() : null,
         due_date: $("dueInput").value || null,
+        estimated_hours: $("estimateInput").value ? Number($("estimateInput").value) : null,
         note: $("noteInput").value.trim() || null,
         created_by: currentUser.id,
       };
@@ -878,7 +890,7 @@ function setRegisterMode(value) {
         if (error) return toast(error.message);
       }
 
-      ["titleInput", "projectInput", "contactInput", "dueInput", "noteInput", "customAssigneeInput", "customCategoryInput"].forEach(id => $(id).value = "");
+      ["titleInput", "projectInput", "contactInput", "dueInput", "noteInput", "customAssigneeInput", "customCategoryInput", "estimateInput"].forEach(id => $(id).value = "");
       $("assigneeInput").value = "";
       $("categoryInput").value = "";
       $("priorityInput").value = "medium";
@@ -1161,9 +1173,12 @@ function setRegisterMode(value) {
               </select>
             </label>
           </div>
-          <div class="grid two" style="margin-top:12px">
+          <div class="grid three" style="margin-top:12px">
             <label>Fällig
               <input data-field="due_date" type="date" value="${escapeHtml(t.due_date || "")}">
+            </label>
+            <label>Geschätzter Aufwand (Std.)
+              <input data-field="estimated_hours" type="number" min="0" step="0.5" value="${t.estimated_hours != null ? escapeHtml(String(t.estimated_hours)) : ""}">
             </label>
             <label>Notiz
               <textarea data-field="note">${escapeHtml(t.note || "")}</textarea>
@@ -1191,6 +1206,7 @@ function setRegisterMode(value) {
               <span style="margin-left:10px">🏷️</span><span>${escapeHtml(t.category || "Keine Kategorie")}</span>
             </div>
             ${t.due_date ? `<div class="summary-line"><span>📅</span><span>${escapeHtml(dueInfo(t.due_date).label)}</span></div>` : ""}
+            ${t.estimated_hours != null ? `<div class="summary-line"><span>⏱️</span><span>ca. ${escapeHtml(formatHours(t.estimated_hours))}</span></div>` : ""}
             ${t.status === "done" && completedAtLabel(t) ? `<div class="summary-line"><span>✅</span><span>Erledigt am ${escapeHtml(completedAtLabel(t))}</span></div>` : ""}
           </div>
         </div>
@@ -1202,6 +1218,7 @@ function setRegisterMode(value) {
             <span class="pill ${t.priority}">${priorityLabel(t.priority)}</span>
             ${t.internal_contact ? `<span class="pill">☎ ${escapeHtml(t.internal_contact)}</span>` : ""}
             ${t.due_date ? `<span class="pill ${dueInfo(t.due_date).className}">📅 ${escapeHtml(dueInfo(t.due_date).label)}</span>` : ""}
+            ${t.estimated_hours != null ? `<span class="pill">⏱️ ca. ${escapeHtml(formatHours(t.estimated_hours))}</span>` : ""}
             ${t.status === "done" && completedAtLabel(t) ? `<span class="pill">✅ Erledigt am ${escapeHtml(completedAtLabel(t))}</span>` : ""}
             ${isArchivedTask(t) ? `<span class="pill archived">📦 Archiv</span>` : ""}
           </div>
@@ -1273,6 +1290,7 @@ function setRegisterMode(value) {
           category: val("category") || null,
           priority: val("priority"),
           due_date: val("due_date") || null,
+          estimated_hours: val("estimated_hours") ? Number(val("estimated_hours")) : null,
           note: val("note").trim() || null,
         };
         editingTaskIds.delete(t.id);
